@@ -55,8 +55,7 @@ class NoiseDataset(BaseDataset):
         self.noise_maps_path = os.path.join(self.root, "interpolated")
 
         self.resolution_512 = opt.resolution_512
-        self.building_paths = sorted(os.listdir(self.building_path))
-        self.noise_maps_paths = sorted(os.listdir(self.noise_maps_path))
+        self.building_paths = sorted()
         # define the default transform function. You can use <base_dataset.get_transform>; You can also define your custom transform function
         self.transform = get_transform(opt)
         print("NOISEDATASET object created")
@@ -76,22 +75,20 @@ class NoiseDataset(BaseDataset):
         Step 3: convert your data to a PyTorch tensor. You can use helpder functions such as self.transform. e.g., data = self.transform(image)
         Step 4: return a data point as a dictionary.
         """
-        # get the corresponding index of the noise map list depending on which resolution we want to train 
-        noise_maps_index = 2 * index if not self.resolution_512 else (2 * index) + 1 
-
         # get paths
-        path = 'NOT IMPLEMENTED FOR NOISE DATASET'  # needs to be a string
         path_A = os.path.join(self.building_path, f"buildings_{index}.png")
-        #print(path_A)
         if self.resolution_512:
             path_B = os.path.join(self.noise_maps_path, f"{index}_LEQ_512.png")
         else:
             path_B = os.path.join(self.noise_maps_path, f"{index}_LEQ_256.png")
-        #print(path_B)
 
         # load image and gt
         data_A =  Image.open(path_A).convert('L')
         data_B = Image.open(path_B).convert('L')
+
+        # downsample the input to 256x256 when using 256 output
+        if not self.resolution_512:
+            data_A = data_A.resize((256, 256), Image.ANTIALIAS)
 
         # convert to torch tensor
         to_tensor = transforms.ToTensor()
@@ -102,4 +99,4 @@ class NoiseDataset(BaseDataset):
 
     def __len__(self):
         """Return the total number of images."""
-        return len(self.building_paths)
+        return len(os.listdir(self.building_path))
