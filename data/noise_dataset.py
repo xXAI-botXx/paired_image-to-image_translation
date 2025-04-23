@@ -52,9 +52,10 @@ class NoiseDataset(BaseDataset):
         # save the option and dataset root
         BaseDataset.__init__(self, opt)
         # get the image paths of your dataset;
-        self.building_path = os.path.join(self.root, "buildings", mode)  # You can call sorted(make_dataset(self.root, opt.max_dataset_size)) to get all the image paths under the directory self.root
-        self.noise_maps_path = os.path.join(self.root, "interpolated", mode)
-        self.ids = [id.split('_')[1].split('.')[0] for id in os.listdir(self.building_path)]
+        self.building_path = os.path.join(self.root, "buildings")  # You can call sorted(make_dataset(self.root, opt.max_dataset_size)) to get all the image paths under the directory self.root
+        self.noise_maps_path = os.path.join(self.root, "interpolated")
+        # self.ids = [id.split('_')[0].split('.')[1] for id in os.listdir(self.building_path)]
+        self.ids = [id.split('_')[0].split('.')[0] for id in os.listdir(self.building_path)]
         self.resolution_512 = opt.resolution_512
         # define the default transform function. You can use <base_dataset.get_transform>; You can also define your custom transform function
         self.transform = get_transform(opt)
@@ -77,11 +78,12 @@ class NoiseDataset(BaseDataset):
         """
         # get paths
         id = self.ids[index]
-        path_A = os.path.join(self.building_path, f"buildings_{id}.png")
+        # path_A = os.path.join(self.building_path, f"buildings_{id}.png")
+        path_A = os.path.join(self.building_path, f"{id}_LAEQ_256.png")
         if self.resolution_512:
-            path_B = os.path.join(self.noise_maps_path, f"{id}_LEQ_512.png")
+            path_B = os.path.join(self.noise_maps_path, f"{id}_LAEQ_512.png")
         else:
-            path_B = os.path.join(self.noise_maps_path, f"{id}_LEQ_256.png")
+            path_B = os.path.join(self.noise_maps_path, f"{id}_LAEQ_256.png")
 
         # load image and gt
         data_A =  Image.open(path_A).convert('L')

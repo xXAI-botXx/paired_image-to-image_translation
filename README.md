@@ -1,3 +1,39 @@
+### Installing a working python/conda env:
+```bash
+cd ~
+wget https://repo.anaconda.com/archive/Anaconda3-2024.10-1-Linux-x86_64.sh
+bash Anaconda3-2024.10-1-Linux-x86_64.sh
+export PATH="$HOME/anaconda3/bin:$PATH"
+conda init
+
+conda create -n gan python=3.8 pip -y
+conda activate gan
+pip install -r ./requirements.txt
+pip install tqdm
+```
+
+
+### Start a Training (in remote SSH):
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/nms10000_0_0_2500_2500 --name pix2pix_0_0 --model pix2pix --n_epochs 150 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy cosine --dataset_mode noise --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size 10000 > ./training_pix2pix_0_0.log 2>&1 &
+```
+
+
+### Transfer your data to training node/server:
+```bash
+scp -r D:/Cache/nms10000_0_0_2500_2500 tippolit@schmidhuber12.imla.hs-offenburg.de:~/data/nms10000_0_0_2500_2500
+```
+
+
+### Testing:
+FIXME
+
+
+<br><br>
+
+> It follows the original README content:
+
 
 <img src='imgs/horse2zebra.gif' align="right" width=384>
 
