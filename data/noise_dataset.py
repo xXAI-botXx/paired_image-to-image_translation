@@ -34,6 +34,7 @@ class NoiseDataset(BaseDataset):
             the modified parser.
         """
         parser.add_argument('--new_dataset_option', type=float, default=1.0, help='new dataset option')
+        parser.add_argument('--different_building_naming', action='store_true', help='when loading noise dataset this options decides whether to use the standard naming (buildings_0.png) or another naming (0_LAEQ_512.png)')
         parser.set_defaults(max_dataset_size=10, new_dataset_option=2.0)  # specify dataset-specific default values
         return parser
 
@@ -51,12 +52,17 @@ class NoiseDataset(BaseDataset):
         """
         # save the option and dataset root
         BaseDataset.__init__(self, opt)
-        # get the image paths of your dataset;
+        self.resolution_512 = opt.resolution_512
+        self.different_building_naming = opt.different_building_naming
+
+        # get the image paths of your dataset
         self.building_path = os.path.join(self.root, "buildings")  # You can call sorted(make_dataset(self.root, opt.max_dataset_size)) to get all the image paths under the directory self.root
         self.noise_maps_path = os.path.join(self.root, "interpolated")
-        # self.ids = [id.split('_')[0].split('.')[1] for id in os.listdir(self.building_path)]
-        self.ids = [id.split('_')[0].split('.')[0] for id in os.listdir(self.building_path)]
-        self.resolution_512 = opt.resolution_512
+        if self.different_building_naming:
+            self.ids = [id.split('_')[0] for id in os.listdir(self.building_path)]
+        else:
+            self.ids = [id.split('_')[1].split('.')[0] for id in os.listdir(self.building_path)]
+
         # define the default transform function. You can use <base_dataset.get_transform>; You can also define your custom transform function
         self.transform = get_transform(opt)
         print(f"NOISEDATASET in mode {mode} created")
@@ -78,8 +84,15 @@ class NoiseDataset(BaseDataset):
         """
         # get paths
         id = self.ids[index]
-        # path_A = os.path.join(self.building_path, f"buildings_{id}.png")
-        path_A = os.path.join(self.building_path, f"{id}_LAEQ_256.png")
+
+        if self.different_building_naming:
+            if self.resolution_512:
+                path_A = os.path.join(self.building_path, f"{id}_LAEQ_512.png")
+            else:
+                path_A = os.path.join(self.building_path, f"{id}_LAEQ_256.png")
+        else:
+            path_A = os.path.join(self.building_path, f"buildings_{id}.png")
+        
         if self.resolution_512:
             path_B = os.path.join(self.noise_maps_path, f"{id}_LAEQ_512.png")
         else:

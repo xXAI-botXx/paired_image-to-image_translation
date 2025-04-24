@@ -121,29 +121,36 @@ if __name__ == '__main__':
 
             iter_data_time = time.time()
 
-        # if epoch % opt.eval_epoch_freq == 0:
-        #     # measures MSE over the image
-        #     for eval_func in val_functions:
-        #         val_results.setdefault(epoch, {})
-        #         # Set the specific eval_func[0] key to 0.0
-        #         val_results[epoch][eval_func[0]] = 0.0
+        if opt.use_val_dataset and epoch % opt.eval_epoch_freq == 0:
+            # measures MSE over the image
+            for eval_func in val_functions:
+                val_results.setdefault(epoch, {})
+                # Set the specific eval_func[0] key to 0.0
+                val_results[epoch][eval_func[0]] = 0.0
 
-        #     with torch.no_grad():
-        #         for i, data in enumerate(val_dataset):
-        #             model.set_input(data)
-        #             pred = model.forward_and_return()
-        #             gt = data["B"].to("cuda")
-        #             for eval_func in val_functions:
-        #                 val_results[epoch][eval_func[0]] += eval_func[1](pred, gt)
-        #         print(f"Eval Scores of Epoch {epoch}")
-        #         for eval_func in val_functions:
-        #             val_results[epoch][eval_func[0]] /= len(val_dataset)
-        #             for item in val_results[epoch].items():
-        #                 print(f"{item[0]} : {item[1]}")
-        #     if val_results[epoch]['mse'] < best_loss:              # cache our model every <save_epoch_freq> epochs
-        #         print('New Best Model! Epoch %d, MSE %lf' % (epoch, val_results[epoch]['mse']))
-        #         model.save_networks('model_best')
-        #         best_loss = val_results[epoch]['mse']
+            with torch.no_grad():
+                for i, data in enumerate(val_dataset):
+                    model.set_input(data)
+                    pred = model.forward_and_return()
+                    gt = data["B"].to("cuda")
+                    for eval_func in val_functions:
+                        val_results[epoch][eval_func[0]] += eval_func[1](pred, gt)
+                print(f"Eval Scores of Epoch {epoch}")
+                for eval_func in val_functions:
+                    val_results[epoch][eval_func[0]] /= len(val_dataset)
+                    for item in val_results[epoch].items():
+                        print(f"{item[0]} : {item[1]}")
+            if val_results[epoch]['mse'] < best_loss:              # cache our model every <save_epoch_freq> epochs
+                print('New Best Model! Epoch %d, MSE %lf' % (epoch, val_results[epoch]['mse']))
+                model.save_networks('model_best')
+                best_loss = val_results[epoch]['mse']
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
     
-    # save_results(opt.out_val_results, val_results)
+    if opt.use_val_dataset:
+        save_results(opt.out_val_results, val_results)
+
+
+
+
+
+
