@@ -41,6 +41,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
         parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
         parser.add_argument('--use_val_dataset', action='store_true', help='if true, creates a val dataset and evaluates at the end of each epoch')
+        parser.add_argument('--val_dataroot', type=str, default='~/data/nms10000_0_0_2500_2500_val', help='path to images')
         # noise modelling specific parameters
         parser.add_argument('--resolution_512', action='store_true', help='if true, the used output resolution is 512, else 256', default=False)
 

@@ -71,9 +71,9 @@ def save_results(out_dir, results):
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
-    dataset = create_dataset(opt, "train")  # create a dataset given opt.dataset_mode and other options
+    dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     if opt.use_val_dataset:
-        val_dataset = create_dataset(opt, "val")
+        val_dataset = create_dataset(opt, is_validation_data=True)
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
 
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     val_results = {} # the evaluation metric results, have the form: epoch:metric:value
     best_loss = 99999999
 
-    for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
+    for epoch in range(opt.epoch_count, opt.n_epochs + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()    # timer for data loading per iteration
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
@@ -144,7 +144,7 @@ if __name__ == '__main__':
                 print('New Best Model! Epoch %d, MSE %lf' % (epoch, val_results[epoch]['mse']))
                 model.save_networks('model_best')
                 best_loss = val_results[epoch]['mse']
-        print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
+        print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs, time.time() - epoch_start_time))
     
     if opt.use_val_dataset:
         save_results(opt.out_val_results, val_results)

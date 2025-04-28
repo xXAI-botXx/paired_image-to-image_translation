@@ -38,12 +38,11 @@ class NoiseDataset(BaseDataset):
         parser.set_defaults(max_dataset_size=10, new_dataset_option=2.0)  # specify dataset-specific default values
         return parser
 
-    def __init__(self, opt, mode = 'train'):
+    def __init__(self, opt):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
-            mode (str) -- one of train, val or test
 
         A few things can be done here.
         - save the options (have been done in BaseDataset)
@@ -65,8 +64,8 @@ class NoiseDataset(BaseDataset):
 
         # define the default transform function. You can use <base_dataset.get_transform>; You can also define your custom transform function
         self.transform = get_transform(opt)
-        print(f"NOISEDATASET in mode {mode} created")
-        print(f"Number of {mode} samples: {len(os.listdir(self.building_path))}")
+        print(f"NOISEDATASET from {self.root} in created")
+        print(f"Number of samples: {len(os.listdir(self.building_path))}")
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
