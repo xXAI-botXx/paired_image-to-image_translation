@@ -14,10 +14,21 @@ pip install tqdm
 
 
 ### Start a Training (in remote SSH):
+
+-> Add your Weights & Bias API key:
 ```bash
 conda activate gan
-nohup python train.py --dataroot ~/data/nms10000_0_0_2500_2500 --name pix2pix_0_0 --model pix2pix --n_epochs 150 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy cosine --dataset_mode noise --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size 10000 > ./training_pix2pix_0_0.log 2>&1 &
+wandb login your_api_key_here
 ```
+-> or remove *--use_wandb --wandb_project_name Master-PhysGen* from the arguments.
+
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0 --model hexa_wave_net --n_epochs 250 --lr 0.001 --beta1 0.5 --batch_size 4 --lr_policy cosine --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 200 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0.log 2>&1 &
+```
+
+> Recommended is a small Batchsize, for more precision. Maybe make a tradeoff precision and computational calculation.
 
 
 ### Transfer your data to training node/server:
@@ -27,7 +38,34 @@ scp -r D:/Cache/nms10000_0_0_2500_2500 tippolit@schmidhuber12.imla.hs-offenburg.
 
 
 ### Testing:
-FIXME
+
+1. Make predictions
+  ```batch
+  conda activate gan
+  cd ./src/paired_image-to-image_translation
+  &:: rm -rf ./eval
+  nohup python test.py --dataroot ~/does_not_be_used --name pix2phys_0_0 --model pix2phys --batch_size 32 --dataset_mode physgen --input_nc 1 --output_nc 1 --load_size 256 --results_dir ./eval/pix2phys_0_0 --eval > ./testing_pix2pix_0_0.log 2>&1 &
+  ```
+
+2. Evaluate
+  ```bash
+  conda activate gan
+  cd ./src
+  git clone https://github.com/physicsgen/physicsgen.git
+  cd ./physicsgen
+  python sound_metrics.py --data_dir data/true --pred_dir data/pred --output evaluation.csv
+  ```
+
+  Arguments:
+      --data_dir: Directory containing true sound maps and test.csv.
+      --pred_dir: Directory containing predicted sound maps.
+      --output: Path to save the evaluation results.
+
+
+Also see:
+- https://huggingface.co/datasets/mspitzna/physicsgen
+- https://arxiv.org/abs/2503.05333
+- https://github.com/physicsgen/physicsgen
 
 
 <br><br>

@@ -51,26 +51,78 @@ from torchvision.models import convnext_base, ConvNeXt_Base_Weights, resnet18
 # CNN Encoder
 
 class ConvNeXtEncoder(nn.Module):
-    def __init__(self, pretrained=True):
+    def __init__(self, pretrained=True, in_channels=1):
         super().__init__()
         weights = ConvNeXt_Base_Weights.IMAGENET1K_V1 if pretrained else None
         backbone = convnext_base(weights=weights)
 
+        # Change from 3 channels to 1
+        orig_conv = backbone.features[0][0]  # Conv2d(3, 96, kernel_size=4, stride=4)
+        new_conv = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=orig_conv.out_channels,
+            kernel_size=orig_conv.kernel_size,
+            stride=orig_conv.stride,
+            padding=orig_conv.padding,
+            bias=orig_conv.bias is not None
+        )
+
+        #     Initialize new weights (e.g., average over RGB if pretrained)
+        if pretrained and in_channels == 1:
+            new_conv.weight.data = orig_conv.weight.data.mean(dim=1, keepdim=True)
+            if orig_conv.bias is not None:
+                new_conv.bias.data = orig_conv.bias.data.clone()
+
+        #     Replace the original conv layer
+        backbone.features[0][0] = new_conv
+
+        # Set used Layers
         self.stem = backbone.features[0]
         self.stage1 = backbone.features[1]
         self.stage2 = backbone.features[2]
         self.stage3 = backbone.features[3]  # Output: [B, 576, 16, 16]
         self.stage4 = backbone.features[4]  # Would downsample to 8x8
+        self.stage5 = backbone.features[5]
 
-        self.proj = nn.Conv2d(576, 512, 1)  # Project to match latent_dim
+        # print(f"ConvNext features: {backbone.features}")
+
+        self.proj = nn.Conv2d(512, 512, 1)  # Project to match latent_dim
 
     def forward(self, x):
-        x = self.stem(x)
-        x = self.stage1(x)
-        x = self.stage2(x)
-        x = self.stage3(x)  # [B, 576, 16, 16]
+        skips = []
+
+        x = self.stem(x)    # [B, 128, 128, 128]
+        skips += [x]
+        # print(f"Stem Shape x: {x.shape}")
+
+        x = self.stage1(x)  # [B, 128, 128, 128]
+        skips += [x]
+        # print(f"Stage 1 - Shape x: {x.shape}")
+
+        x = self.stage2(x)  # [B, 256, 64, 64]
+        skips += [x]
+        # print(f"Stage 2 - Shape x: {x.shape}")
+
+        x = self.stage3(x)  # [B, 256, 64, 64]
+        # print(f"Stage 3 - Shape x: {x.shape}")
+
+        x = self.stage4(x)  # [B, 512, 32, 32]
+        # print(f"Stage 4 - Shape x: {x.shape}")
+
+        x = self.stage5(x)  # [B, 512, 32, 32]
+        # print(f"Stage 5 - Shape x: {x.shape}")
+
         x = self.proj(x)    # [B, 512, 16, 16]
-        return x
+        # print(f"Projection Shape x: {x.shape}")
+        return x, skips
+
+def process_skips(skip_feats, target_size=(256, 256)):
+    processed = []
+    for feat in skip_feats:
+        upsampled = F.interpolate(feat, size=target_size, mode='bilinear')  # [B, C, H, W] → [B, C, 256, 256]
+        flat = rearrange(upsampled, 'b c h w -> b (h w) c')  # [B, N, C]
+        processed += [flat]
+    return torch.cat(processed, dim=-1)  # [B, N, C_total]
 
 # class ResNetEncoder(nn.Module):
 #     def __init__(self):
@@ -213,55 +265,116 @@ class SIRENDecoder(nn.Module):
 
     def forward(self, coords, latent_features):
         # coords: [B, N, 2], latent_features: [B, N, C]
+        if len(coords.shape) == 2:
+            coords = torch.unsqueeze(coords, dim=0)
         x = torch.cat([coords, latent_features], dim=-1)
         return self.net(x)  # [B, N, 1]
 
 
 
 # Whole Generator Module 
-class PhysGenerator(nn.Module):
+class HexaWaveNetGenerator(nn.Module):
     def __init__(self, in_channels=1, latent_dim=512, image_size=256):
         super().__init__()
 
-        self.coords = get_normalized_grid(H=image_size, W=image_size)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.image_size = image_size
+        self.in_channels = in_channels
+        self.coords = get_normalized_grid(H=image_size, W=image_size, device=self.device)
 
         self.encoder = ConvNeXtEncoder(pretrained=True)    # SimpleCNNEncoder(in_channels, base_channels=64)
-        self.fno = FNO(in_channels=512, out_channels=512, width=512, modes1=12, modes2=12)
+        self.fno = FNO(in_channels=512, out_channels=512, width=16, modes1=6, modes2=6)
         self.transformer = LatentTransformer(dim=512)
-        self.decoder = SIRENDecoder(coord_dim=2, latent_dim=512)
+        self.decoder = SIRENDecoder(coord_dim=2, latent_dim=512*2)
 
     def forward(self, image):
-        feat_cnn = self.encoder(image)  # [B, 512, 16, 16]
+        if image.dim() == 2:
+            image = image.unsqueeze(0)
+            image = image.unsqueeze(3)
+        elif image.dim() == 3:
+            image = image.unsqueeze(0)
+
+        # if image.shape[1] == self.in_channels:  # [B, C, H, W] -> [B, H, W, C]
+        #     image = image.permute(0, 2, 3, 1)
+        
+
+        batch_size = image.shape[0]
+
+        # print(f"[Info] Model got Image with shape: {image.shape}")
+
+        # >>> Encoding <<<
+        #     --------
+        feat_cnn, skips = self.encoder(image)  # [B, 512, 16, 16]
+        # print(f"feat_cnn Shape: {feat_cnn.shape}")
         feat_fno = self.fno(feat_cnn)   # [B, 512, 16, 16]
+        # print(f"feat_fno Shape: {feat_fno.shape}")
         feat_comb = feat_cnn + feat_fno  # Combine CNN and FNO features (Skip Connecion)
+        # print(f"feat_comb Shape: {feat_comb.shape}")
 
+        # >>> Latent Space <<<
+        #     ------------
         # Transformer latent attention
-        latent_seq = self.transformer(feat_comb)  # [B, 256, 512] if 16x16
+        latent_seq = self.transformer(feat_comb)  # [B, 1024, 512]
+        B, HW, C = latent_seq.shape
+        # print(f"Latent Transformer Shape: {latent_seq.shape}")
+        assert HW == 16*16, f"Expected 256 tokens, got {HW}"
+        assert C == 512, f"Expected 512 channels, got {C}"
 
+        # >>> Upsample Latent Space <<<
+        #     ---------------------
         # Upsample latent features to match coordinates (assumes coords is Nx2 for 256x256)
-        B, N, _ = self.coords.shape
-        latent_map = latent_seq.reshape(B, 16, 16, 512).permute(0, 3, 1, 2)  # [B, C, 16, 16]
-        latent_up = F.interpolate(latent_map, size=(256, 256), mode='bilinear')  # [B, C, 256, 256]
-        latent_flat = rearrange(latent_up, 'b c h w -> b (h w) c')  # [B, N, C]
+        # print(f"Coordinate Shapes: {self.coords.shape}")        
+        # H_W, N = self.coords.shape
+        latent_map = latent_seq.reshape(B, 16, 16, C).permute(0, 3, 1, 2)  # [B, C, 16, 16]
+        # print(f"Latent Map Shape: {latent_map.shape}")
 
-        # Decode
-        output = self.decoder(self.coords, latent_flat)  # [B, N, 1]
+        # Upscaling Latent Space
+        latent_up = F.interpolate(latent_map, size=(self.image_size, self.image_size), mode='bilinear')  # [B, C, 256, 256]
+        
+        # Latent Space in coordinate format for SIREN Decoder
+        latent_flat = rearrange(latent_up, 'b c h w -> b (h w) c')  # [B, N, C]
+        # print(f"Latent Flat Shape: {latent_flat.shape}")
+
+        # >>> Skip Connection <<<
+        #     ---------------
+        # Process skip features
+        skip_flat = process_skips(skips, target_size=(self.image_size, self.image_size))  # [B, N, C_skips]
+        # print(f"Skip Flat Shape: {skip_flat.shape}")
+
+        # Combine latent + skips
+        full_features = torch.cat([latent_flat, skip_flat], dim=-1)  # [B, N, C_total]
+        # print(f"Full Features Shape: {full_features.shape}")
+
+        # # Reduce features
+        # self.feature_proj = nn.Linear(combined_dim, latent_dim)  # optional
+        # reduced_features = self.feature_proj(full_features)  # [B, N, latent_dim]
+
+        # >>> Decoding <<<
+        #     --------
+        # using SIREN
+        output = self.decoder(self.coords, full_features)  # [B, N, 1]
+        # print(f"Decoder Shape: {output.shape}")
+
+        # >>> Reshaping <<<
+        #     ---------
+        output = output.reshape(batch_size, self.in_channels, self.image_size, self.image_size)
         return output
 
-    def get_normalized_grid(H=256, W=256):
-        # Creates a normalized meshgrid from -1 to 1
-        y = torch.linspace(-1, 1, H)
-        x = torch.linspace(-1, 1, W)
-        grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
-        coords = torch.stack([grid_x, grid_y], dim=-1)  # [H, W, 2]
-        coords = coords.view(-1, 2)  # [H*W, 2]
-        return coords
+def get_normalized_grid(H=256, W=256, device="cuda"):
+    # Creates a normalized meshgrid from -1 to 1
+    y = torch.linspace(-1, 1, H).to(device)
+    x = torch.linspace(-1, 1, W).to(device)
+    grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
+    coords = torch.stack([grid_x, grid_y], dim=-1)  # [H, W, 2]
+    coords = coords.view(-1, 2)  # [H*W, 2]
+    return coords
 
 
 # -----------------
 # --- GAN Model ---
 # -----------------
-class Pix2PhysModel(BaseModel):
+class HexaWaveNetModel(BaseModel):
     """ This class implements the pix2phys model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
@@ -320,7 +433,7 @@ class Pix2PhysModel(BaseModel):
         else:  # during test time, only load G
             self.model_names = ['G']
         # define networks (both generator and discriminator)
-        self.netG = networks.init_net(PhysGenerator(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size), 
+        self.netG = networks.init_net(HexaWaveNetGenerator(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size), 
                                       opt.init_type, 
                                       opt.init_gain, 
                                       self.gpu_ids)
@@ -350,10 +463,19 @@ class Pix2PhysModel(BaseModel):
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
-        AtoB = self.opt.direction == 'AtoB'
-        self.real_A = input['A' if AtoB else 'B'].to(self.device)
-        self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        if self.opt.dataset_mode.lower() == "physgen":
+            self.real_A = input[0].to(self.device)
+            # Fix real image size 512x512 > 256x256
+            self.real_A = F.interpolate(self.real_A.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
+            # self.real_A = self.real_A.squeeze(0)
+
+            self.real_B = input[1].to(self.device)
+            self.real_B = self.real_B.unsqueeze(0)
+        else:
+            AtoB = self.opt.direction == 'AtoB'
+            self.real_A = input['A' if AtoB else 'B'].to(self.device)
+            self.real_B = input['B' if AtoB else 'A'].to(self.device)
+            self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def set_current_epoch(self, epoch):
         self.current_epoch = epoch
@@ -374,8 +496,16 @@ class Pix2PhysModel(BaseModel):
 
         Wasserstein loss with gradient penalty.
         """
-        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-        real_AB = torch.cat((self.real_A, self.real_B), 1)
+        # print(f"self.real_A: {self.real_A.shape}")
+        # print(f"self.fake_B: {self.fake_B.shape}")
+        # print(f"self.real_B: {self.real_B.shape}")
+
+        fake_AB = torch.cat((self.real_A, self.fake_B), dim=1)
+        real_AB = torch.cat((self.real_A, self.real_B), dim=1)
+
+        # print(f"fake_AB: {fake_AB.shape}")
+        # print(f"self.real_A: {self.real_A.shape}")
+        # print(f"self.real_B: {self.fake_B.shape}")
 
         pred_fake = self.netD(fake_AB.detach())
         pred_real = self.netD(real_AB)

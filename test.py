@@ -1,4 +1,5 @@
-"""General-purpose test script for image-to-image translation.
+"""
+General-purpose test script for image-to-image translation.
 
 Once you have trained your model with train.py, you can use this script to test the model.
 It will load a saved model from '--checkpoints_dir' and save the results to '--results_dir'.
@@ -33,6 +34,8 @@ from models import create_model
 from util.visualizer import save_images
 from util import html
 
+from datasets import load_dataset
+
 try:
     import wandb
 except ImportError:
@@ -47,7 +50,12 @@ if __name__ == '__main__':
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-    dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+    if not opt.dataset_mode.lower() == "physgen":
+        dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+    else:
+        loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
+        dataset = PhysGenDataset(dataset=loaded_dataset["test"], opt=opt)
+    
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
 
@@ -78,3 +86,5 @@ if __name__ == '__main__':
             print('processing (%04d)-th image... %s' % (i, img_path))
         save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)
     webpage.save()  # save the HTML
+
+

@@ -27,6 +27,9 @@ from util.visualizer import Visualizer
 from tqdm import tqdm
 import os, json
 
+from data.physgen_dataset import PhysGenDataset
+from datasets import load_dataset
+
 def create_val_functions(opt):
     """
     Creates a list of evaluation functions to be computed at evaluation time. The evaluation functions has each to be passed as a action store true
@@ -71,9 +74,15 @@ def save_results(out_dir, results):
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
-    dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
-    if opt.use_val_dataset:
-        val_dataset = create_dataset(opt, is_validation_data=True)
+    if not opt.dataset_mode.lower() == "physgen":
+        dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+        if opt.use_val_dataset:
+            val_dataset = create_dataset(opt, is_validation_data=True)
+    else:
+        loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
+        dataset = PhysGenDataset(dataset=loaded_dataset["train"], opt=opt)
+        if opt.use_val_dataset:
+            val_dataset = PhysGenDataset(dataset=loaded_dataset["eval"], opt=opt)
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
 

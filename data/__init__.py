@@ -14,6 +14,7 @@ from copy import deepcopy
 import importlib
 import torch.utils.data
 from data.base_dataset import BaseDataset
+from data.physgen_dataset import PhysGenDataset
 
 
 def find_dataset_using_name(dataset_name):
