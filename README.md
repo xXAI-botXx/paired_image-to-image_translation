@@ -1,3 +1,57 @@
+Contents:
+- [Hexa Wave Net](#hexa-wave-net)
+  - [Architecture](#architecture)
+  - [Installing a working python/conda env](#installing-a-working-pythonconda-env)
+  - [Start a Training](#start-a-training-in-remote-ssh)
+  - [Transfer your data to training node/server](#transfer-your-data-to-training-nodeserver)
+  - [Testing](#testing)
+- [Pix2Pix (original)](#pix2pix)
+
+<br><br>
+
+---
+
+<br>
+
+# Hexa Wave Net
+
+<img src="./imgs/hexa_wave_net_logo_2.jpg"></img>
+
+### Architecture
+
+```
+        Input: 256x256xC
+           ↓
+  CNN Encoder (ConvNeXt): extracts local features
+           ↓
+      FNO Layer(s): models long-range frequency-aware field behavior
+           ↓
+  Latent Transformer Block:
+                    - Attention over spatial regions
+                    - Acts as a saliency filter: learns where to focus
+           ↓
+     SIREN Decoder (predicts continuous field from coordinates + latent features)
+           ↓
+        Output: 256x256xC
+```
+
+
+
+#### Explanaiton of Components:
+
+| Component   | Purpose                                         |
+| ----------- | ----------------------------------------------- |
+| CNN         | Captures **local features**                     |
+| FNO         | Models **global frequency interactions**        |
+| Transformer | **Learns saliency** dynamically in latent space |
+| SIREN       | Refines sharp, **continuous signal** edges      |
+
+
+#### Improvement:
+- Decoding Process as Encoding: 2 ways, A common CNN and a physics way (SIREN) and fusion them together
+
+
+
 ### Installing a working python/conda env:
 ```bash
 cd ~
@@ -25,8 +79,60 @@ wandb login your_api_key_here
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0 --model hexa_wave_net --n_epochs 250 --lr 0.001 --beta1 0.5 --batch_size 4 --lr_policy cosine --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 200 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0 --model hexa_wave_net --n_epochs 100 --lr 0.003 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 50 --gan_activate_epoch 0 --wgangp --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0.log 2>&1 &
 ```
+
+HexaWavenet 1:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_1 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_1.log 2>&1 &
+```
+
+HexaWavenet 2 -> No Latent Transformer, CNN Decoder + SIREN Decoder + Image:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_2 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 2 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_2.log 2>&1 &
+```
+
+HexaWavenet 3 -> MLP Head:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3 --model hexa_wave_net --n_epochs 100 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3.log 2>&1 &
+```
+
+SIREN End-to-End, Image-to-Image:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_4 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 4 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_4.log 2>&1 &
+```
+
+FNO End-to-End, Image-to-Image:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_5 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 5 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_5.log 2>&1 &
+```
+
+HexaWaveNet with a normal CNN Encoder (not ConvNext):
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_6 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 6 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_6.log 2>&1 &
+```
+
+HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transformer Latent Space decoder:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_7 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 50 --gan_activate_epoch 50 --wgangp --model_type 7 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_7.log 2>&1 &
+```
+
+
+Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`
 
 > Recommended is a small Batchsize, for more precision. Maybe make a tradeoff precision and computational calculation.
 
@@ -70,10 +176,14 @@ Also see:
 
 <br><br>
 
-> It follows the original README content:
+---
+
+> It follows the original README content from Pix2Pix:
+
 
 
 <img src='imgs/horse2zebra.gif' align="right" width=384>
+
 
 <br><br><br>
 

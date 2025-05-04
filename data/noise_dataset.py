@@ -51,7 +51,10 @@ class NoiseDataset(BaseDataset):
         """
         # save the option and dataset root
         BaseDataset.__init__(self, opt)
-        self.resolution_512 = opt.resolution_512
+        try:
+            self.resolution_512 = opt.resolution_512
+        except AttributeError:
+            self.resolution_512 = False
         self.different_building_naming = opt.different_building_naming
 
         # get the image paths of your dataset

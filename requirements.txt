@@ -7,7 +7,7 @@ tqdm
 einops
 numba
 pandas
-pillow
+pillow<10.0
 numpy
 matplotlib
 datasets

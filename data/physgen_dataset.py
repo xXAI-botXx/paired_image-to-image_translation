@@ -50,7 +50,10 @@ class PhysGenDataset(BaseDataset):
         """
         # save the option and dataset root
         BaseDataset.__init__(self, opt)
-        self.resolution_512 = opt.resolution_512
+        try:
+            self.resolution_512 = opt.resolution_512
+        except AttributeError:
+            self.resolution_512 = False
 
         # get data
         # self.dataset = load_dataset("mspitzna/physicsgen", name="sound_combined", trust_remote_code=True)
