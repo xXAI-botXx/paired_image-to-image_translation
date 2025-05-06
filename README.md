@@ -1,5 +1,6 @@
 Contents:
 - [Hexa Wave Net](#hexa-wave-net)
+  - [Notice for this fork](#notice)
   - [Architecture](#architecture)
   - [Installing a working python/conda env](#installing-a-working-pythonconda-env)
   - [Start a Training](#start-a-training-in-remote-ssh)
@@ -16,6 +17,18 @@ Contents:
 # Hexa Wave Net
 
 <img src="./imgs/hexa_wave_net_logo_2.jpg"></img>
+
+<br><br>
+
+### Notice
+
+This fork changes a Pix2Pix Fork for applying NoiseModelling Dataset (also Base Simulation as input) and the PhysGen Dataset with the Pix2Pix Model. It also adds some helpful [run commands](#start-a-training-in-remote-ssh).<br>
+This fork also adds some other architecture try outs. All are collected under the name "Hexa Wave Net" but some are just transformer or other architectures. See the [Hexa Wave Net python file](./models/hexa_wave_net_model.py) for the different architectures. The new argument *--model_type* defines the used architecture.
+
+All Architectures got tested but all failed more or less. Most models had the right basic but had too many max values (black pixels). All tests where collected and anylzed with Weights and Bias and sharing the results would be too much storage for this repo, maybe I add the results as textual description here in this README.
+
+I still think it is a interesting architecture and it is exciting to try out new/other architectures. So the architecture itself may fail for this task but see the architecture(s) as reference and maybe there is only a little issue and the architecture does work.
+
 
 ### Architecture
 
@@ -100,7 +113,7 @@ HexaWavenet 3 -> MLP Head:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3 --model hexa_wave_net --n_epochs 100 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3 --model hexa_wave_net --n_epochs 53 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 50 --gan_activate_epoch 3 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3.log 2>&1 &
 ```
 
 SIREN End-to-End, Image-to-Image:
@@ -128,7 +141,21 @@ HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transforme
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_7 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 50 --gan_activate_epoch 50 --wgangp --model_type 7 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_7.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_7 --model hexa_wave_net --n_epochs 53 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 1.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 7 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_7.log 2>&1 &
+```
+
+HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transformer Latent Space decoder:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_8 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 8 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_8.log 2>&1 &
+```
+
+Transformer encoder-decoder Architecture:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name transformer_only --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 9 --use_wandb --wandb_project_name Master-PhysGen > ./transformer_only.log 2>&1 &
 ```
 
 

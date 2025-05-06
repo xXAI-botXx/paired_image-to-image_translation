@@ -5,6 +5,7 @@ visdom>=0.1.8.8
 wandb
 tqdm
 einops
+pytorch-msssim
 numba
 pandas
 pillow<10.0

@@ -38,6 +38,9 @@ import numpy
 # pip install einops
 from einops import rearrange
 
+# pip install pytorch-msssim
+import pytorch_msssim
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -120,13 +123,18 @@ class ConvNeXtEncoder(nn.Module):
         # print(f"Projection Shape x: {x.shape}")
         return x, skips
 
-def process_skips(skip_feats, target_size=(256, 256)):
+def process_skips(skip_feats, target_size=(256, 256), flatten=True):
     processed = []
     for feat in skip_feats:
         upsampled = F.interpolate(feat, size=target_size, mode='bilinear')  # [B, C, H, W] → [B, C, 256, 256]
-        flat = rearrange(upsampled, 'b c h w -> b (h w) c')  # [B, N, C]
-        processed += [flat]
-    return torch.cat(processed, dim=-1)  # [B, N, C_total]
+        if flatten:
+            upsampled = rearrange(upsampled, 'b c h w -> b (h w) c')  # [B, N, C]
+        processed += [upsampled]
+
+    if flatten:
+        return torch.cat(processed, dim=-1)  # [B, N, C_total]
+    else:
+        return torch.cat(processed, dim=1)  # [B, C_total, 256, 256]
 
 # class ResNetEncoder(nn.Module):
 #     def __init__(self):
@@ -182,7 +190,7 @@ class SimpleCNNEncoderWithSkips(nn.Module):
 
         x = self.cnn1(x)
         x = self.act1(x)
-        skips += [x]  # [B, base_channels, 128, 128]
+        skips += [x]  # [B, base_channels, 128, 128] 
 
         x = self.cnn2(x)
         x = self.act2(x)
@@ -985,6 +993,144 @@ class HexaWaveNetGenerator_5(nn.Module):
             
         return output
 
+# Model Type 8
+class HexaWaveNetGenerator_6(nn.Module):
+    def __init__(self, in_channels=1, latent_dim=512, image_size=256):
+        super().__init__()
+
+        self.forward_passes = 0
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.image_size = image_size
+        self.in_channels = in_channels
+        self.coords = get_normalized_grid(H=image_size, W=image_size, device=self.device)
+
+        self.encoder = SimpleCNNEncoderWithSkips(in_channels, base_channels=64)
+        self.transformer = LatentTransformer(dim=512)
+
+        self.cnn_decoder = CNNDecoder(in_channels=512, out_channels=64)
+        self.fusion_cnn = nn.Conv2d(self.in_channels+64, 64, kernel_size=3, padding=1).to(self.device)
+
+        self.mlp_head = nn.Sequential(
+                                nn.Linear(in_features=64, out_features=32, device=self.device, bias=True),
+                                nn.Linear(in_features=32, out_features=16, device=self.device, bias=True),
+                                nn.Linear(in_features=16, out_features=self.in_channels, device=self.device, bias=True)
+                        )
+
+        cnn_head_in = self.in_channels+64+64*2+64*4
+        self.cnn_head_1  = nn.Conv2d(in_channels=cnn_head_in, out_channels=cnn_head_in//2, device=self.device, bias=True, kernel_size=1, stride=1)
+        self.cnn_head_2  = nn.Conv2d(in_channels=cnn_head_in//2, out_channels=cnn_head_in//4, device=self.device, bias=True, kernel_size=1, stride=1)
+        self.cnn_head_3  = nn.Conv2d(in_channels=cnn_head_in//4, out_channels=cnn_head_in//8, device=self.device, bias=True, kernel_size=1, stride=1)
+        self.cnn_head_4  = nn.Conv2d(in_channels=cnn_head_in//8, out_channels=self.in_channels, device=self.device, bias=True, kernel_size=1, stride=1)
+
+    def forward(self, image):
+        should_print = self.forward_passes == 0
+
+        # make right dimensions: [B, C, H, W]
+        if image.dim() == 2:
+            image = image.unsqueeze(0)
+            image = image.unsqueeze(3)
+        elif image.dim() == 3:
+            image = image.unsqueeze(0)
+
+        # if image.shape[1] == self.in_channels:  # [B, C, H, W] -> [B, H, W, C]
+        #     image = image.permute(0, 2, 3, 1)
+        
+
+        batch_size = image.shape[0]
+
+        if should_print:
+            print(f"\n{'-'*32}\nForwarding Hexa Wave Net 6")
+            print(f"[Debug] Input shape: {image.shape}, min: {image.min():.2f}, max: {image.max():.2f}")
+
+        # >>> Encoding <<<
+        #     --------
+        feat_cnn, skips = self.encoder(image)  # [B, 512, 16, 16]
+        if should_print:
+            print(f"feat_cnn Shape: {feat_cnn.shape}")
+
+        # >>> Latent Space <<<
+        #     ------------
+        # Transformer latent attention
+        latent_seq = self.transformer(feat_cnn)  # [B, 256, 512]
+        B, HW, C = latent_seq.shape
+        if should_print:
+            print(f"Latent Transformer Shape: {latent_seq.shape}")
+        assert HW == 16*16, f"Expected 256 tokens, got {HW}"
+        assert C == 512, f"Expected 512 channels, got {C}"
+
+        # >>> Upsample Latent Space <<<
+        #     ---------------------
+        # Upsample latent features to match coordinates (assumes coords is Nx2 for 256x256)
+        if should_print:
+            print(f"Coordinate Shapes: {self.coords.shape}")        
+
+        latent_map = latent_seq.reshape(B, 16, 16, C).permute(0, 3, 1, 2)  # [B, C, 16, 16]
+        if should_print:
+            print(f"Latent Map Shape: {latent_map.shape}")
+
+        # # Upscaling Latent Space
+        # latent_up = F.interpolate(latent_map, size=(self.image_size, self.image_size), mode='bilinear')  # [B, C, 256, 256]
+
+        # # Latent Space in coordinate format for SIREN Decoder
+        # latent_flat = rearrange(latent_up, 'b c h w -> b (h w) c')  # [B, N, C]
+        # if should_print:
+        #     print(f"Latent Flat Shape: {latent_flat.shape}")
+
+        # >>> Skip Connection <<<
+        #     ---------------
+        # Process skip features
+        upsampled_skips = process_skips(skips, target_size=(self.image_size, self.image_size), flatten=False)  # [B, C_total, 256, 256]
+        if should_print:
+            print(f"Upsampled Skips Shape: {upsampled_skips.shape}")
+
+        # # Combine latent + skips
+        # full_features = torch.cat([latent_flat, skip_flat], dim=-1)  # [B, N, C_total]
+        # if should_print:
+        #     print(f"Full Features Shape: {full_features.shape}")
+
+        # >>> Decoding <<<
+        #     --------
+        decoding_cnn = self.cnn_decoder(latent_map)
+        if should_print:
+            print(f"CNN Decoder Shape: {decoding_cnn.shape}")
+
+        # MLP/CNN take decoding + the input image and generate the image
+        combined = torch.cat([decoding_cnn, image], dim=1)  # [B, 2C, H, W]
+        output = torch.sigmoid(self.fusion_cnn(combined))
+
+        # MLP whichtakes the fusion and returns the output image
+        # output: [B, 64, H, W]
+        B, C, H, W = output.shape
+        output = output.permute(0, 2, 3, 1).reshape(-1, C)  # [B*H*W, 64]
+        output = self.mlp_head(output)                     # [B*H*W, in_channels]
+        output = output.view(B, H, W, self.in_channels).permute(0, 3, 1, 2)  # [B, in_channels, H, W]
+        if should_print:
+            print(f"MLP Head Shape: {output.shape}")
+
+        # CNN Head
+        cnn_head_1 = self.cnn_head_1(torch.cat([output, upsampled_skips], dim=1))
+        cnn_head_2 = self.cnn_head_2(cnn_head_1)
+        cnn_head_3 = self.cnn_head_3(cnn_head_2)
+        cnn_head_4 = self.cnn_head_4(cnn_head_3)
+
+        if should_print:
+            print(f"CNN Head 1 Shape: {cnn_head_1.shape}")
+            print(f"CNN Head 2 Shape: {cnn_head_2.shape}")
+            print(f"CNN Head 3 Shape: {cnn_head_3.shape}")
+            print(f"CNN Head 4 Shape: {cnn_head_4.shape}")
+
+        # >>> Reshaping <<<
+        #     ---------
+        output = cnn_head_4.reshape(batch_size, self.in_channels, self.image_size, self.image_size)
+
+        if should_print:
+            print(f"[Debug] Output shape: {output.shape}, min: {output.min():.2f}, max: {output.max():.2f}")
+            print(f"FINISHED Forwarding Hexa Wave Net 6\n{'-'*32}")
+        self.forward_passes += 1
+            
+        return output
+
 #  SIREN Only Model
 class SineLayer(nn.Module):
     def __init__(self, in_features, out_features, is_first=False, omega_0=30):
@@ -1184,81 +1330,6 @@ class FNO2D(nn.Module):
         grid = grid.unsqueeze(0).repeat(batchsize, 1, 1, 1)  # [B, H, W, 2]
         return grid
 
-# class FNO2D(nn.Module):
-#     def __init__(self, modes_x, modes_y, width, in_channels):
-#         super().__init__()
-#         self.forward_passes = 0
-#         self.in_channels = in_channels
-#         self.width = width
-#         self.fc0 = nn.Linear(self.in_channels, width)  # 1 input channel + 2 for coordinates
-
-#         self.conv0 = Spectralizer(width, width, modes_x, modes_y)
-#         self.conv1 = Spectralizer(width, width, modes_x, modes_y)
-#         self.conv2 = Spectralizer(width, width, modes_x, modes_y)
-#         self.conv3 = Spectralizer(width, width, modes_x, modes_y)
-
-#         self.w0 = nn.Conv2d(width, width, 1)
-#         self.w1 = nn.Conv2d(width, width, 1)
-#         self.w2 = nn.Conv2d(width, width, 1)
-#         self.w3 = nn.Conv2d(width, width, 1)
-
-#         self.fc1 = nn.Linear(width, 128)
-#         self.fc2 = nn.Linear(128, 1)
-
-#     def forward(self, x):
-#         if self.forward_passes == 0:
-#             should_print = True
-#         else:
-#             should_print = False
-#         # make right dimensions: [B, C, H, W]
-#         if x.dim() == 2:
-#             x = x.unsqueeze(0)
-#             x = x.unsqueeze(3)
-#         elif x.dim() == 3:
-#             x = x.unsqueeze(0)
-
-#         if should_print:
-#             print(f"\n{'-'*32}\nForwarding Fourier Nerual Operator")
-#             print(f"[Debug] Image stats - min: {x.min().item():.2f}, max: {x.max().item():.2f}, mean: {x.mean().item():.2f}")
-#             print(f"Input Image Shape: {x.shape}")
-        
-#         batch_size = x.shape[0]
-#         channels = x.shape[1]
-#         image_size = x.shape[2]
-
-#         grid = self.get_grid(x.shape, x.device)
-#         if should_print:
-#             print(f"Grid Shape: {grid.shape}")
-#         x = torch.cat([x, grid], dim=-1)
-#         if should_print:
-#             print(f"Grid + Input Cat Shape: {x.shape}")
-#         x = self.fc0(x)
-#         x = x.permute(0, 3, 1, 2)  # (B, C, H, W)
-#         if should_print:
-#             print(f"Fully Connected 0 Shape: {x.shape}")
-
-#         x1 = self.conv0(x) + self.w0(x)
-#         x2 = self.conv1(x1) + self.w1(x1)
-#         x3 = self.conv2(x2) + self.w2(x2)
-#         x4 = self.conv3(x3) + self.w3(x3)
-
-#         x = x4.permute(0, 2, 3, 1)  # (B, H, W, C)
-#         x = self.fc1(x)
-#         x = torch.relu(x)
-#         x = self.fc2(x)
-
-#         self.forward_passes += 1
-
-#         return x  # (B, H, W, 1)
-
-#     def get_grid(self, shape, device):
-#         batchsize, size_x, size_y, _ = shape
-#         gridx = torch.linspace(0, 1, size_x, device=device)
-#         gridy = torch.linspace(0, 1, size_y, device=device)
-#         gridx, gridy = torch.meshgrid(gridx, gridy, indexing='ij')
-#         grid = torch.stack((gridx, gridy), dim=-1).unsqueeze(0).repeat(batchsize, 1, 1, 1)
-#         return grid
-
 
 
 def get_normalized_grid(H=256, W=256, device="cuda"):
@@ -1269,6 +1340,108 @@ def get_normalized_grid(H=256, W=256, device="cuda"):
     coords = torch.stack([grid_x, grid_y], dim=-1)  # [H, W, 2]
     coords = coords.view(-1, 2)  # [H*W, 2]
     return coords
+
+
+# Tranformer models
+import torch
+import torch.nn as nn
+
+class PatchEmbedding(nn.Module):
+    def __init__(self, in_channels=1, patch_size=16, emb_dim=512, img_size=256):
+        super().__init__()
+        self.patch_size = patch_size
+        self.n_patches = (img_size // patch_size) ** 2
+        self.proj = nn.Conv2d(in_channels, emb_dim, kernel_size=patch_size, stride=patch_size)
+
+    def forward(self, x):
+        x = self.proj(x)  # (B, emb_dim, H/patch, W/patch)
+        x = x.flatten(2).transpose(1, 2)  # (B, N, emb_dim)
+        return x
+
+class TransformerBlock(nn.Module):
+    def __init__(self, dim, heads, mlp_dim, dropout=0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim)
+        self.attn = nn.MultiheadAttention(dim, heads, dropout=dropout, batch_first=True)
+        self.norm2 = nn.LayerNorm(dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(dim, mlp_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(mlp_dim, dim),
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x):
+        x = x + self.attn(self.norm1(x), self.norm1(x), self.norm1(x))[0]
+        x = x + self.mlp(self.norm2(x))
+        return x
+
+class TransformerEncoder(nn.Module):
+    def __init__(self, depth=8, **kwargs):
+        super().__init__()
+        self.layers = nn.Sequential(*[TransformerBlock(**kwargs) for _ in range(depth)])
+
+    def forward(self, x):
+        return self.layers(x)
+
+class TransformerImageTranslator(nn.Module):
+    def __init__(self, img_size=256, patch_size=16, in_channels=1, emb_dim=512, depth=8, heads=8, mlp_dim=1024):
+        super().__init__()
+        self.forward_passes = 0
+
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.grid_size = img_size // patch_size
+
+        self.patch_embedding = PatchEmbedding(in_channels, patch_size, emb_dim, img_size)
+        self.encoder = TransformerEncoder(depth, dim=emb_dim, heads=heads, mlp_dim=mlp_dim)
+        self.decoder = nn.Sequential(
+            nn.Linear(emb_dim, patch_size * patch_size),
+            nn.Unflatten(2, (patch_size, patch_size)),
+        )
+        # self.out_conv = nn.ConvTranspose2d(1, 1, kernel_size=patch_size, stride=patch_size)
+
+    def forward(self, x):
+        should_print = self.forward_passes == 0
+        if x.dim() == 2:
+            x = x.unsqueeze(0)
+            x = x.unsqueeze(3)
+        elif x.dim() == 3:
+            x = x.unsqueeze(0)
+
+        if should_print:
+            print(f"\n{'-'*32}\nForwarding Transformer")
+            print(f"[Debug] Input shape: {x.shape}, min: {x.min():.2f}, max: {x.max():.2f}")
+
+        B = x.shape[0]
+
+        patches = self.patch_embedding(x)               # (B, N, D)
+        if should_print:
+            print(f"Patch Shape: {patches.shape}")
+
+        features = self.encoder(patches)                # (B, N, D)
+        if should_print:
+            print(f"Encoding Shape: {features.shape}")
+
+        decoded = self.decoder(features)                    # (B, H, H/patch, W/patch)  [1, 256, 16, 16]
+        if should_print:
+            print(f"Decoding Shape: {decoded.shape}")
+
+        grid_size = self.grid_size
+        out = decoded.view(B, grid_size, grid_size, self.patch_size, self.patch_size)
+        out = out.permute(0, 1, 3, 2, 4).contiguous()  # (B, H/P, P, W/P, P)
+        out = out.view(B, 1, self.img_size, self.img_size)  # (B, 1, H, W)
+
+        # out = self.out_conv(out)  
+        
+        if should_print:
+            print(f"[Debug] Output shape: {out.shape}, min: {out.min():.2f}, max: {out.max():.2f}")
+            print(f"FINISHED Transformer\n{'-'*32}")
+        self.forward_passes += 1                      # (B, 1, 256, 256)
+
+        return out
+
 
 
 # -----------------
@@ -1311,9 +1484,12 @@ class HexaWaveNetModel(BaseModel):
         parser.set_defaults(norm='batch', netG='unet_256', dataset_mode='aligned')
         if is_train:
             parser.set_defaults(pool_size=0, gan_mode='vanilla')
-            parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
-            parser.add_argument('--gan_activate_epoch', type=int, default=50, help='Epoch on which GAN loss is disabled')
-            parser.add_argument('--gan_disable_epoch', type=int, default=100, help='Epoch after which GAN loss is disabled')
+            parser.add_argument('--lambda_L1', type=float, default=1.0, help='weight for L1 loss')
+            parser.add_argument('--lambda_GAN', type=float, default=0.25, help='weight for GAN loss')
+            parser.add_argument('--lambda_ssmi', type=float, default=0.5, help='weight for SSMI loss')
+            parser.add_argument('--lambda_edge', type=float, default=0.5, help='weight for Edge loss')
+            # parser.add_argument('--gan_activate_epoch', type=int, default=50, help='Epoch on which GAN loss is disabled')
+            # parser.add_argument('--gan_disable_epoch', type=int, default=100, help='Epoch after which GAN loss is disabled')
             parser.add_argument('--model_type', type=int, default=1, help='Decides the exact HexaWaveNet model (see in the model.py for the different models).')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
 
@@ -1350,6 +1526,10 @@ class HexaWaveNetModel(BaseModel):
             hexa_wave_net = HexaWaveNetGenerator_4(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size)
         elif self.opt.model_type == 7:
             hexa_wave_net = HexaWaveNetGenerator_5(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size)
+        elif self.opt.model_type == 8:
+            hexa_wave_net = HexaWaveNetGenerator_6(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size)
+        elif self.opt.model_type == 9:
+            hexa_wave_net = TransformerImageTranslator(img_size=opt.crop_size, patch_size=16, in_channels=opt.input_nc, emb_dim=512, depth=8, heads=8, mlp_dim=1024)
         else:
             raise ValueError(f"Hexa Wave Net does not have the type: {self.opt.model_type}")
         self.netG = networks.init_net(hexa_wave_net, 
@@ -1374,8 +1554,9 @@ class HexaWaveNetModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
             self.current_epoch = 0
 
+        # currently deactivated
         self.epochs_with_gan = 0
-        self.gan_active = opt.gan_activate_epoch == 0
+        self.gan_active = True
         self.forward_passes = 0
 
     def set_input(self, input):
@@ -1411,18 +1592,22 @@ class HexaWaveNetModel(BaseModel):
 
 
     def set_current_epoch(self, epoch):
+        new_epoch = self.current_epoch != epoch
         self.current_epoch = epoch
 
-        
-        if self.gan_active:
-            self.epochs_with_gan += 1
+        # if new_epoch:
+        #     if self.gan_active:
+        #         self.epochs_with_gan += 1
+        #         print("[Loss-System] Epochs with GAN Mode increased")
 
-            if self.epochs_with_gan >= self.opt.gan_disable_epoch:
-                self.gan_active = False
-       
-        if not self.gan_active:
-            if self.epochs_with_gan < self.opt.gan_disable_epoch and self.current_epoch >= self.opt.gan_activate_epoch: 
-                self.gan_active = True
+        #         if self.epochs_with_gan >= self.opt.gan_disable_epoch:
+        #             print("[Loss-System] Deactivated GAN Loss Mode")
+        #             self.gan_active = False
+        
+        #     if not self.gan_active:
+        #         if self.epochs_with_gan < self.opt.gan_disable_epoch and self.current_epoch >= self.opt.gan_activate_epoch:
+        #             print("[Loss-System] Activated GAN Loss Mode")
+        #             self.gan_active = True
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -1470,45 +1655,49 @@ class HexaWaveNetModel(BaseModel):
         """
         Generator loss with optional GAN loss
         """
+        # L1 loss
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_L1
 
-        if self.gan_active:
-            fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-            pred_fake = self.netD(fake_AB)
-            if self.opt.wgangp:
-                self.loss_G_GAN = -pred_fake.mean()
-            else:
-                self.loss_G_GAN = self.criterionGAN(pred_fake, True)
-                # combine loss and calculate gradients
-            self.loss_G = self.loss_G_GAN + self.loss_G_L1
+        # GAN Loss
+        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+        pred_fake = self.netD(fake_AB)
+        if self.opt.wgangp:
+            self.loss_G_GAN = -pred_fake.mean()
         else:
-            self.loss_D_real = torch.tensor(0.0, device=self.device)    # deactivated
-            self.loss_D_fake = torch.tensor(0.0, device=self.device)    # deactivated
-            self.loss_G_GAN = torch.tensor(0.0, device=self.device)  # deactivated
-            # Edge-aware Gradient Loss
-            lambda_grad = 30.0 # getattr(self.opt, "lambda_grad", 10.0)  # set default if not specified
-            # self.loss_G_grad = self.compute_gradient_loss(self.fake_B, self.real_B) * lambda_grad
-            self.loss_G = self.loss_G_L1 # + self.loss_G_grad
+            self.loss_G_GAN = self.criterionGAN(pred_fake, True)
+            # combine loss and calculate gradients
+
+        # SSMI Loss
+        loss_ssmi = 1 - pytorch_msssim.ssim(self.fake_B, self.real_B, data_range=1.0) 
+
+        # Edge Loss
+        loss_edges = gradient_loss(self.fake_B, self.real_B)
+        
+        # Combine all losses
+        self.loss_G = self.loss_G_L1 * self.opt.lambda_L1 + \
+                      self.loss_G_GAN * self.opt.lambda_GAN + \
+                      loss_ssmi * self.opt.lambda_ssmi + \
+                      loss_edges * self.opt.lambda_edge
 
         self.loss_G.backward()
 
-    def optimize_parameters(self, debugging=True, check_vanishing_gradients=False):
-        if debugging:
-            torch.autograd.set_detect_anomaly(True)
-        
+    def optimize_parameters(self, check_vanishing_gradients=False):
         self.forward()
 
         # Discrimantor
-        if self.gan_active:
-            self.set_requires_grad(self.netD, True)
-            self.optimizer_D.zero_grad()
+        self.set_requires_grad(self.netD, True)
+        self.optimizer_D.zero_grad()
+        with torch.autograd.set_detect_anomaly(True):
             self.backward_D()
-            self.optimizer_D.step()
+        torch.nn.utils.clip_grad_norm_(self.netD.parameters(), max_norm=1.0)
+        self.optimizer_D.step()
 
         # Generator
         self.set_requires_grad(self.netD, False)
         self.optimizer_G.zero_grad()
-        self.backward_G()
+        with torch.autograd.set_detect_anomaly(True):
+            self.backward_G()
+        torch.nn.utils.clip_grad_norm_(self.netG.parameters(), max_norm=1.0)
         self.optimizer_G.step()
 
         # Test info log
@@ -1548,6 +1737,19 @@ class HexaWaveNetModel(BaseModel):
         return loss
 
 # Helper for loss
+def gradient_loss(pred, target):
+    sobel = nn.Conv2d(1, 2, kernel_size=3, padding=1, bias=False)
+    sobel.weight.data = torch.tensor([
+        [[[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]],
+        [[[-1, -2, -1], [0, 0, 0], [1, 2, 1]]]
+    ], dtype=torch.float32)
+    sobel.requires_grad_(False)
+    sobel = sobel.to("cuda")
+
+    pred_grad = sobel(pred)
+    target_grad = sobel(target)
+    return F.l1_loss(pred_grad, target_grad)
+
 def compute_gradient_penalty(D, real_samples, fake_samples, device, lambda_gp=10.0):
     """
     Calculates the gradient penalty loss for WGAN GP
