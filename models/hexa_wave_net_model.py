@@ -462,6 +462,7 @@ class HexaWaveNetGenerator_1(nn.Module):
         #                                     num_layers=6
         #                                 )
         self.decoder = SIRENDecoder(coord_dim=2, latent_dim=512*2)
+        self.output_activation = nn.Tanh()
 
     def forward(self, image, should_print=False):
         # make right dimensions: [B, C, H, W]
@@ -556,7 +557,8 @@ class HexaWaveNetGenerator_1(nn.Module):
         # MLP take both decodings + the input image and generate the image
         combined = torch.cat([decoding_siren, decoding_cnn], dim=1)  # [B, 2C, H, W]
         fusion = nn.Conv2d(self.in_channels+64, self.in_channels, kernel_size=3, padding=1).to(self.device)
-        output = torch.sigmoid(fusion(combined))
+        output = fusion(combined)
+        output = self.output_activation(output)
 
         # >>> Reshaping <<<
         #     ---------
@@ -585,6 +587,7 @@ class HexaWaveNetGenerator_2(nn.Module):
 
         self.cnn_decoder = CNNDecoder(in_channels=512*2, out_channels=1)
         self.decoder = SIRENDecoder(coord_dim=2, latent_dim=1)
+        self.output_activation = nn.Tanh()
 
     def forward(self, image, should_print=False):
         # make right dimensions: [B, C, H, W]
@@ -634,7 +637,7 @@ class HexaWaveNetGenerator_2(nn.Module):
         # MLP/CNN take both decodings + the input image and generate the image
         combined = torch.cat([decoding_siren, decoding_cnn, image], dim=1)  # [B, 2C, H, W]
         fusion = nn.Conv2d(self.in_channels*3, self.in_channels, kernel_size=3, padding=1).to(self.device)
-        output = torch.sigmoid(fusion(combined))
+        output = self.output_activation(fusion(combined))
 
         # >>> Reshaping <<<
         #     ---------
@@ -672,6 +675,7 @@ class HexaWaveNetGenerator_3(nn.Module):
                                 nn.Linear(in_features=32, out_features=16, device=self.device, bias=True),
                                 nn.Linear(in_features=16, out_features=self.in_channels, device=self.device, bias=True)
                         )
+        self.output_activation = nn.Tanh()
 
     def forward(self, image):
         if self.forward_passes == 0:    # or numpy.random.rand() > 0.9
@@ -725,7 +729,7 @@ class HexaWaveNetGenerator_3(nn.Module):
 
         # MLP/CNN take both decodings + the input image and generate the image
         combined = torch.cat([decoding_siren, decoding_cnn, image], dim=1)  # [B, 2C, H, W]
-        output = torch.sigmoid(self.fusion_cnn(combined))
+        output = self.output_activation(self.fusion_cnn(combined))
 
         # MLP whichtakes the fusion and returns the output image
         # output: [B, 64, H, W]
@@ -733,6 +737,7 @@ class HexaWaveNetGenerator_3(nn.Module):
         output = output.permute(0, 2, 3, 1).reshape(-1, C)  # [B*H*W, 64]
         output = self.mlp_head(output)                     # [B*H*W, in_channels]
         output = output.view(B, H, W, self.in_channels).permute(0, 3, 1, 2)  # [B, in_channels, H, W]
+        output = self.output_activation(output)
 
         # >>> Reshaping <<<
         #     ---------
@@ -765,6 +770,7 @@ class HexaWaveNetGenerator_4(nn.Module):
 
         # self.cnn_decoder = CNNDecoder(in_channels=512, out_channels=64)
         self.decoder = SIRENDecoder(coord_dim=2, latent_dim=960)
+        self.output_activation = nn.Tanh()
 
     def forward(self, image):
         should_print = self.forward_passes == 0
@@ -855,7 +861,7 @@ class HexaWaveNetGenerator_4(nn.Module):
         # combined = torch.cat([decoding_siren, decoding_cnn], dim=1)  # [B, 2C, H, W]
         # fusion = nn.Conv2d(self.in_channels+64, self.in_channels, kernel_size=3, padding=1).to(self.device)
         # output = torch.sigmoid(fusion(combined))
-        output = torch.sigmoid(decoding_siren)
+        output = self.output_activation(decoding_siren)
 
         # >>> Reshaping <<<
         #     ---------
@@ -892,6 +898,7 @@ class HexaWaveNetGenerator_5(nn.Module):
                                 nn.Linear(in_features=32, out_features=16, device=self.device, bias=True),
                                 nn.Linear(in_features=16, out_features=self.in_channels, device=self.device, bias=True)
                         )
+        self.output_activation = nn.Tanh()
 
     def forward(self, image):
         should_print = self.forward_passes == 0
@@ -973,7 +980,7 @@ class HexaWaveNetGenerator_5(nn.Module):
 
         # MLP/CNN take decoding + the input image and generate the image
         combined = torch.cat([decoding_cnn, image], dim=1)  # [B, 2C, H, W]
-        output = torch.sigmoid(self.fusion_cnn(combined))
+        output = self.output_activation(self.fusion_cnn(combined))
 
         # MLP whichtakes the fusion and returns the output image
         # output: [B, 64, H, W]
@@ -1022,6 +1029,8 @@ class HexaWaveNetGenerator_6(nn.Module):
         self.cnn_head_2  = nn.Conv2d(in_channels=cnn_head_in//2, out_channels=cnn_head_in//4, device=self.device, bias=True, kernel_size=1, stride=1)
         self.cnn_head_3  = nn.Conv2d(in_channels=cnn_head_in//4, out_channels=cnn_head_in//8, device=self.device, bias=True, kernel_size=1, stride=1)
         self.cnn_head_4  = nn.Conv2d(in_channels=cnn_head_in//8, out_channels=self.in_channels, device=self.device, bias=True, kernel_size=1, stride=1)
+
+        self.output_activation = nn.Tanh()
 
     def forward(self, image):
         should_print = self.forward_passes == 0
@@ -1097,7 +1106,7 @@ class HexaWaveNetGenerator_6(nn.Module):
 
         # MLP/CNN take decoding + the input image and generate the image
         combined = torch.cat([decoding_cnn, image], dim=1)  # [B, 2C, H, W]
-        output = torch.sigmoid(self.fusion_cnn(combined))
+        output = self.output_activation(self.fusion_cnn(combined))
 
         # MLP whichtakes the fusion and returns the output image
         # output: [B, 64, H, W]
@@ -1123,6 +1132,7 @@ class HexaWaveNetGenerator_6(nn.Module):
         # >>> Reshaping <<<
         #     ---------
         output = cnn_head_4.reshape(batch_size, self.in_channels, self.image_size, self.image_size)
+        output = self.output_activation(output)
 
         if should_print:
             print(f"[Debug] Output shape: {output.shape}, min: {output.min():.2f}, max: {output.max():.2f}")
@@ -1164,6 +1174,8 @@ class SIRENImageTranslator(nn.Module):
         self.net = nn.Sequential(*layers)
         self.final = nn.Linear(hidden_features, out_features)
 
+        self.output_activation = nn.Tanh()
+
     def forward(self, x):
         should_print = self.forward_passes == 0
         # Handle input shape: [B, C, H, W] → [B, H, W, C]
@@ -1194,6 +1206,7 @@ class SIRENImageTranslator(nn.Module):
             print(f"Output Shape: {output.shape}")
 
         output = output.view(batch_size, channels, image_size, image_size)
+        output = self.output_activation(output)
 
         if should_print:
             print(f"[Debug] Output shape: {output.shape}, min: {output.min():.2f}, max: {output.max():.2f}")
@@ -1275,6 +1288,8 @@ class FNO2D(nn.Module):
         self.fc1 = nn.Linear(width, 128)
         self.fc2 = nn.Linear(128, 1)
 
+        self.output_activation = nn.Tanh()
+
     def forward(self, x):
         should_print = self.forward_passes == 0
 
@@ -1314,6 +1329,8 @@ class FNO2D(nn.Module):
         x = self.fc2(x)  # [B, H, W, 1]
 
         x = x.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W] 
+
+        x = self.output_activation(x)
 
         if should_print:
             print(f"[Debug] Output shape: {x.shape}, min: {x.min():.2f}, max: {x.max():.2f}")
@@ -1401,6 +1418,7 @@ class TransformerImageTranslator(nn.Module):
             nn.Unflatten(2, (patch_size, patch_size)),
         )
         # self.out_conv = nn.ConvTranspose2d(1, 1, kernel_size=patch_size, stride=patch_size)
+        self.output_activation = nn.Tanh()
 
     def forward(self, x):
         should_print = self.forward_passes == 0
@@ -1433,7 +1451,8 @@ class TransformerImageTranslator(nn.Module):
         out = out.permute(0, 1, 3, 2, 4).contiguous()  # (B, H/P, P, W/P, P)
         out = out.view(B, 1, self.img_size, self.img_size)  # (B, 1, H, W)
 
-        # out = self.out_conv(out)  
+        # out = self.out_conv(out) 
+        out = self.output_activation(out) 
         
         if should_print:
             print(f"[Debug] Output shape: {out.shape}, min: {out.min():.2f}, max: {out.max():.2f}")

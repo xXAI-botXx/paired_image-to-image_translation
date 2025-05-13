@@ -1,4 +1,6 @@
 import torch
+import torch.nn.functional as F
+
 from .base_model import BaseModel
 from . import networks
 
@@ -33,6 +35,7 @@ class Pix2PixModel(BaseModel):
         if is_train:
             parser.set_defaults(pool_size=0, gan_mode='vanilla')
             parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
+            parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
 
         return parser
 
@@ -69,6 +72,9 @@ class Pix2PixModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+        
+        self.epochs_with_gan = 0
+        self.forward_passes = 0
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -78,10 +84,32 @@ class Pix2PixModel(BaseModel):
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
-        AtoB = self.opt.direction == 'AtoB'
-        self.real_A = input['A' if AtoB else 'B'].to(self.device)
-        self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        if self.opt.dataset_mode.lower() == "physgen":
+            self.real_A = input[0].to(self.device)
+            # Fix real image size 512x512 > 256x256
+            self.real_A = F.interpolate(self.real_A.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
+            # self.real_A = self.real_A.squeeze(0)
+
+            self.real_B = input[1].to(self.device)
+            self.real_B = self.real_B.unsqueeze(0)
+        else:
+            AtoB = self.opt.direction == 'AtoB'
+            self.real_A = input['A' if AtoB else 'B'].to(self.device)
+            self.real_B = input['B' if AtoB else 'A'].to(self.device)
+            self.image_paths = input['A_paths' if AtoB else 'B_paths']
+
+        if self.forward_passes == 0:
+            print("New Input Images:")
+            print(f"\n[Debug] Image (self.realA) stats:\n    - min: {self.real_A.min().item():.2f}\n    - max: {self.real_A.max().item():.2f}\n    - mean: {self.real_A.mean().item():.2f}\n    - shape: {self.real_A.shape}")
+            print(f"\n[Debug] Image (self.real_B) stats:\n    - min: {self.real_B.min().item():.2f}\n    - max: {self.real_B.max().item():.2f}\n    - mean: {self.real_B.mean().item():.2f}\n    - shape: {self.real_B.shape}")
+        else:
+            pass    
+            
+        self.forward_passes += 1
+
+    def set_current_epoch(self, epoch):
+        new_epoch = self.current_epoch != epoch
+        self.current_epoch = epoch
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -97,13 +125,29 @@ class Pix2PixModel(BaseModel):
         # Fake; stop backprop to the generator by detaching fake_B
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # we use conditional GANs; we need to feed both input and output to the discriminator
         pred_fake = self.netD(fake_AB.detach())
-        self.loss_D_fake = self.criterionGAN(pred_fake, False)
+        
         # Real
         real_AB = torch.cat((self.real_A, self.real_B), 1)
         pred_real = self.netD(real_AB)
-        self.loss_D_real = self.criterionGAN(pred_real, True)
-        # combine loss and calculate gradients
-        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
+
+        if self.opt.wgangp:
+            # WGAN loss
+            self.loss_D_fake = pred_fake.mean()
+            self.loss_D_real = -pred_real.mean()
+
+            # Gradient penalty
+            self.loss_D_gp = compute_gradient_penalty(
+                                 self.netD, real_AB.detach(), fake_AB.detach(), device=self.device
+                             )
+
+            # Total loss
+            self.loss_D = self.loss_D_real + self.loss_D_fake + self.loss_D_gp
+        else:
+            self.loss_D_fake = self.criterionGAN(pred_fake, False)
+            self.loss_D_real = self.criterionGAN(pred_real, True)
+            # combine loss and calculate gradients
+            self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
+        
         self.loss_D.backward()
 
     def backward_G(self):
@@ -111,9 +155,15 @@ class Pix2PixModel(BaseModel):
         # First, G(A) should fake the discriminator
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         pred_fake = self.netD(fake_AB)
-        self.loss_G_GAN = self.criterionGAN(pred_fake, True)
+
+        if self.opt.wgangp:
+            self.loss_G_GAN = -pred_fake.mean()
+        else:
+            self.loss_G_GAN = self.criterionGAN(pred_fake, True)
+        
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_L1
+        
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN + self.loss_G_L1
         self.loss_G.backward()
@@ -130,3 +180,58 @@ class Pix2PixModel(BaseModel):
         self.optimizer_G.zero_grad()        # set G's gradients to zero
         self.backward_G()                   # calculate graidents for G
         self.optimizer_G.step()             # update G's weights
+
+def compute_gradient_penalty(D, real_samples, fake_samples, device, lambda_gp=10.0):
+    """
+    Computes the gradient penalty used in WGAN-GP (Wasserstein GAN with Gradient Penalty).
+
+    This function helps the discriminator (also called the critic) behave more smoothly and
+    consistently. It does this by adding a penalty whenever the critic's output changes too
+    sharply with small changes in the input — which is important for stable training.
+
+    Here's what it does, step by step:
+
+    1. It picks random points between real and fake data (a mix of both).
+    2. It runs these mixed points through the discriminator.
+    3. It measures how sensitive the discriminator is to these inputs by calculating gradients.
+    4. If the gradients are too large or too small, it adds a penalty.
+       Ideally, the gradient should have a length of 1.
+    5. It returns this penalty as a loss term that can be added to the discriminator loss.
+
+    Args:
+        D (nn.Module): The discriminator (or critic) model.
+        real_samples (Tensor): A batch of real data examples.
+        fake_samples (Tensor): A batch of generated (fake) data.
+        device (torch.device): The device (CPU or GPU) to run computations on.
+        lambda_gp (float): A scaling factor for how strong the penalty should be.
+
+    Returns:
+        Tensor: A single scalar value representing the gradient penalty.
+    """
+    alpha = torch.rand(real_samples.size(0), 1, 1, 1, device=device)
+    alpha = alpha.expand_as(real_samples)
+
+    interpolates = (alpha * real_samples + (1 - alpha) * fake_samples).requires_grad_(True)
+    # interpolates = (alpha * real_samples + (1 - alpha) * fake_samples).detach()
+    # interpolates.requires_grad_(True)
+    d_interpolates = D(interpolates)
+
+    fake = torch.ones(d_interpolates.size(), device=device, requires_grad=False)
+
+    gradients = torch.autograd.grad(
+                    outputs=d_interpolates,
+                    inputs=interpolates,
+                    grad_outputs=fake,
+                    create_graph=True,
+                    retain_graph=True,
+                    only_inputs=True
+                )[0]
+
+    gradients = gradients.view(gradients.size(0), -1)
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambda_gp
+    return gradient_penalty
+
+
+
+
+

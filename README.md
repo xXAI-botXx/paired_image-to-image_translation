@@ -92,56 +92,68 @@ wandb login your_api_key_here
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0 --model hexa_wave_net --n_epochs 100 --lr 0.003 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 50 --gan_activate_epoch 0 --wgangp --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_1_0 --model pix2pix --n_epochs 100 --lr 0.003 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_1_0.log 2>&1 &
+```
+
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_1_0_wgangp --model pix2pix --n_epochs 100 --lr 0.003 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --wgangp --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_1_0_wgangp.log 2>&1 &
+```
+
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0 --model hexa_wave_net --n_epochs 64 --lr 0.003 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --wgangp --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0.log 2>&1 &
 ```
 
 HexaWavenet 1:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_1 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_1.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_1 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_1.log 2>&1 &
 ```
 
 HexaWavenet 2 -> No Latent Transformer, CNN Decoder + SIREN Decoder + Image:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_2 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 2 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_2.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_2 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 2 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_2.log 2>&1 &
 ```
 
 HexaWavenet 3 -> MLP Head:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3 --model hexa_wave_net --n_epochs 53 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 50 --gan_activate_epoch 3 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3 --model hexa_wave_net --n_epochs 64 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3.log 2>&1 &
 ```
 
 SIREN End-to-End, Image-to-Image:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_4 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 4 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_4.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_4 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 4 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_4.log 2>&1 &
 ```
 
 FNO End-to-End, Image-to-Image:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_5 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 5 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_5.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_5 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 5 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_5.log 2>&1 &
 ```
 
 HexaWaveNet with a normal CNN Encoder (not ConvNext):
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_6 --model hexa_wave_net --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gan_disable_epoch 0 --gan_activate_epoch 0 --model_type 6 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_6.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_6 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 6 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_6.log 2>&1 &
 ```
 
 HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transformer Latent Space decoder:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_7 --model hexa_wave_net --n_epochs 53 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 1.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 7 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_7.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_7 --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 7 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_7.log 2>&1 &
 ```
 
 HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transformer Latent Space decoder:
@@ -156,6 +168,13 @@ Transformer encoder-decoder Architecture:
 conda activate gan
 cd ~/src/paired_image-to-image_translation
 nohup python train.py --dataroot ~/does_not_matter --name transformer_only --model hexa_wave_net --n_epochs 64 --lr 0.0001 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 7.0 --lambda_GAN 2.0 --lambda_ssmi 2.0 --lambda_edge 5.0 --model_type 9 --use_wandb --wandb_project_name Master-PhysGen > ./transformer_only.log 2>&1 &
+```
+
+HexaWavenet 3 -> MLP Head but with different loss:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3_other_loss --model hexa_wave_net --n_epochs 64 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 100.0 --lambda_GAN 1.0 --lambda_ssmi 10.0 --lambda_edge 30.0 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3_other_loss.log 2>&1 &
 ```
 
 

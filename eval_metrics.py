@@ -3,16 +3,24 @@ From: https://github.com/physicsgen/physicsgen/blob/main/eval_scripts/sound_metr
 
 Slightly adjusted
 """
-
-import numpy as np
-from PIL import Image
-import numba
-from numba import jit
 import argparse
 import os
-import pandas as pd
-from tqdm import tqdm 
+
+from PIL import Image
+import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+
+import numba
+from numba import jit
+
+from tqdm import tqdm 
+
+# for black-white image -> osm conversion
+import itertools
+import cv2
+import shapely.geometry
+import xml.etree.ElementTree as ET
 
 
 def MAE(y_true, y_pred):
@@ -183,11 +191,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, default="data/true")
     parser.add_argument("--pred_dir", type=str, default="data/pred")
+    parser.add_argument("--osm_dir", type=str, default="none")
     parser.add_argument("--output", type=str, default="evaluation.csv")
     args = parser.parse_args()
 
     data_dir = args.data_dir
     pred_dir = args.pred_dir
+    osm_dir = args.osm_dir
+    osm_dir = None if osm_dir.lower() == "none" else osm_dir
     output = args.output
 
     output_path, _ = os.path.split(output)
@@ -202,13 +213,14 @@ if __name__ == "__main__":
     for sample_name in tqdm(file_names, total=len(file_names), desc="Evaluating samples"):
         pred_ = os.path.join(pred_dir, sample_name)
         real_ = os.path.join(data_dir, sample_name)
+        osm_ = os.path.join(osm_dir, sample_name)
 
         # Check if prediction is available
         if not os.path.exists(f"{pred_dir}/{sample_name}"):
             print(f"Prediction for sample {sample_name} not found.")
             print(f"{pred_dir}/{sample_name}")
             continue
-        mae, mape, mae_in_sight, mae_not_in_sight, mape_in_sight, mape_not_in_sight = evaluate_sample(real_, pred_) # adjust prediction naming if needed
+        mae, mape, mae_in_sight, mae_not_in_sight, mape_in_sight, mape_not_in_sight = evaluate_sample(real_, pred_, osm_path=osm_) # adjust prediction naming if needed
         results.append([sample_name, mae, mape, mae_in_sight, mae_not_in_sight, mape_in_sight, mape_not_in_sight])
 
     results_df = pd.DataFrame(results, columns=["sample_id", "MAE", "MAPE", "LoS_MAE", "NLoS_MAE", "LoS_wMAPE", "NLoS_wMAPE"])

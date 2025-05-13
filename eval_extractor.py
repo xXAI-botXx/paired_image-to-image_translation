@@ -33,6 +33,9 @@ os.makedirs(target_real_path, exist_ok=True)
 target_pred_path = f"{target_path}/pred"
 os.makedirs(target_pred_path, exist_ok=True)
 
+target_osm_path = f"{target_path}/osm"
+os.makedirs(target_osm_path, exist_ok=True)
+
 for cur_file_name in os.listdir(evaluation_path):
     cur_file = os.path.join(evaluation_path, cur_file_name)
     if os.path.isfile(cur_file):
@@ -44,3 +47,11 @@ for cur_file_name in os.listdir(evaluation_path):
             shutil.copy(cur_file, 
                         os.path.join(target_pred_path, get_building_name(cur_file_name)))
             print(f"[info] copied pred from '{cur_file}' to '{os.path.join(target_pred_path, get_building_name(cur_file_name))}'")
+        if "real_A" in cur_file_name:
+            shutil.copy(cur_file, 
+                        os.path.join(target_osm_path, get_building_name(cur_file_name)))
+            print(f"[info] copied osm from '{cur_file}' to '{os.path.join(target_osm_path, get_building_name(cur_file_name))}'")
+
+
+
+
