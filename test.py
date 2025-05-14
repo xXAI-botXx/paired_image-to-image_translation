@@ -28,6 +28,9 @@ See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-p
 See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
 """
 import os
+
+from torchvision.utils import save_image
+
 from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
@@ -35,6 +38,7 @@ from util.visualizer import save_images
 from util import html
 
 from datasets import load_dataset
+from data.physgen_dataset import PhysGenDataset
 
 try:
     import wandb
@@ -81,7 +85,12 @@ if __name__ == '__main__':
         model.set_input(data)  # unpack data from data loader
         model.test()           # run inference
         visuals = model.get_current_visuals()  # get image results
-        img_path = model.get_image_paths()     # get image paths
+        if not opt.dataset_mode.lower() == "physgen":
+            img_path = model.get_image_paths()     # get image paths
+        else:
+            os.makedirs("./cache_dataset", exist_ok=True)
+            img_path = f'./cache_dataset/image_{i}.png'
+            save_image(data[0 if opt.direction == 'AtoB' else 1].detach().cpu(), img_path)
         if i % 5 == 0:  # save images to an HTML file
             print('processing (%04d)-th image... %s' % (i, img_path))
         save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)

@@ -92,6 +92,8 @@ class Pix2PixModel(BaseModel):
 
             self.real_B = input[1].to(self.device)
             self.real_B = self.real_B.unsqueeze(0)
+            
+            # self.image_paths = input[0 if self.opt.direction == 'AtoB' else 1].detach().cpu().numpy()
         else:
             AtoB = self.opt.direction == 'AtoB'
             self.real_A = input['A' if AtoB else 'B'].to(self.device)
