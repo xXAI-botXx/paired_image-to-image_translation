@@ -58,6 +58,7 @@ if __name__ == '__main__':
         dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     else:
         loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
+        print(f"Physgen Variation: {opt.variation}")
         dataset = PhysGenDataset(dataset=loaded_dataset["test"], opt=opt)
     
     model = create_model(opt)      # create a model given opt.model and other options
@@ -85,12 +86,16 @@ if __name__ == '__main__':
         model.set_input(data)  # unpack data from data loader
         model.test()           # run inference
         visuals = model.get_current_visuals()  # get image results
-        if not opt.dataset_mode.lower() == "physgen":
-            img_path = model.get_image_paths()     # get image paths
-        else:
-            os.makedirs("./cache_dataset", exist_ok=True)
-            img_path = f'./cache_dataset/image_{i}.png'
-            save_image(data[0 if opt.direction == 'AtoB' else 1].detach().cpu(), img_path)
+        img_path = model.get_image_paths()     # get image paths
+        # print(f"\nvisuals: {visuals}\nimg_path: {img_path}\n")
+        if opt.dataset_mode.lower() == "physgen":
+            visuals = model.image_names_dict
+            # print(visuals)
+            os.makedirs("/".join(img_path[0].split("/")[:-1]), exist_ok=True)
+            # print(data[0 if opt.direction == 'AtoB' else 1].detach().cpu().shape)
+            save_image(data[0 if opt.direction == 'AtoB' else 1].detach().cpu().unsqueeze(0), img_path[0])
+
+        # print(visuals[list(visuals.keys())[0]].shape)
         if i % 5 == 0:  # save images to an HTML file
             print('processing (%04d)-th image... %s' % (i, img_path))
         save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)

@@ -33,6 +33,7 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256, use_w
     image_dir = webpage.get_image_dir()
     short_path = ntpath.basename(image_path[0])
     name = os.path.splitext(short_path)[0]
+    # print(image_path)
 
     webpage.add_header(name)
     ims, txts, links = [], [], []
@@ -42,6 +43,7 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256, use_w
         image_name = '%s_%s.png' % (name, label)
         save_path = os.path.join(image_dir, image_name)
         util.save_image(im, save_path, aspect_ratio=aspect_ratio)
+        # print(f"saved '{image_name}' -> '{image_dir}'")
         ims.append(image_name)
         txts.append(label)
         links.append(image_name)

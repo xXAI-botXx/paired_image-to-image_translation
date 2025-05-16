@@ -1595,7 +1595,13 @@ class HexaWaveNetModel(BaseModel):
             self.real_B = input[1].to(self.device)
             self.real_B = self.real_B.unsqueeze(0)
 
-            # self.image_paths = input[0 if self.opt.direction == 'AtoB' else 1].detach().cpu().numpy()
+            from collections import OrderedDict
+            self.image_names_dict = OrderedDict()
+            self.image_names_dict[f'real_A'] = input[0] if len(input[0].shape) == 4 else input[0].unsqueeze(0)
+            self.image_names_dict[f'fake_B'] = None 
+            self.image_names_dict[f'real_B'] = input[1] if len(input[1].shape) == 4 else input[1].unsqueeze(0)
+
+            self.image_paths = ["./cache_physgen/" + f"building_{input[2]}.png" if self.opt.direction == 'AtoB' else f"{input[2]}_LAEQ.png"]
         else:
             AtoB = self.opt.direction == 'AtoB'
             self.real_A = input['A' if AtoB else 'B'].to(self.device)
@@ -1633,10 +1639,14 @@ class HexaWaveNetModel(BaseModel):
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG(self.real_A)  # G(A)
+        if self.opt.dataset_mode.lower() == "physgen":
+            self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
 
     def forward_and_return(self):
         """Run forward pass and returns the output"""
         self.fake_B = self.netG(self.real_A)  # G(A)
+        if self.opt.dataset_mode.lower() == "physgen":
+            self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return self.fake_B
 
     # New #

@@ -80,7 +80,7 @@ class PhysGenDataset(BaseDataset):
             input_img = self.transform(input_img)
             target_img = self.transform(target_img)
 
-        return input_img, target_img
+        return input_img, target_img, idx
 
 
 
