@@ -73,8 +73,10 @@ class Pix2PixModel(BaseModel):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
         
+        self.lambda_GAN = 1.0
         self.epochs_with_gan = 0
         self.forward_passes = 0
+        self.current_epoch = 0
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -118,6 +120,11 @@ class Pix2PixModel(BaseModel):
     def set_current_epoch(self, epoch):
         new_epoch = self.current_epoch != epoch
         self.current_epoch = epoch
+
+        # update Loss Weighting
+        if new_epoch:
+            self.lambda_GAN = min(epoch * 10.0, 200)
+            # self.lambda_L1 += 0.5
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -174,10 +181,10 @@ class Pix2PixModel(BaseModel):
             self.loss_G_GAN = self.criterionGAN(pred_fake, True)
         
         # Second, G(A) = B
-        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_L1
+        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
-        self.loss_G = self.loss_G_GAN + self.loss_G_L1
+        self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1
         self.loss_G.backward()
 
     def optimize_parameters(self):
