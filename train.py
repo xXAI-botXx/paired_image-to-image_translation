@@ -96,6 +96,9 @@ if __name__ == '__main__':
     best_loss = 99999999
 
     for epoch in range(opt.epoch_count, opt.n_epochs + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
+        if opt.model == "pix2pix_cfo":
+            model.set_to_train()
+        
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()    # timer for data loading per iteration
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
@@ -109,7 +112,7 @@ if __name__ == '__main__':
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
             model.set_input(data)         # unpack data from dataset and apply preprocessing
-            if opt.model == "pix2phys" or opt.model == "hexa_wave_net":
+            if opt.model == "pix2phys" or opt.model == "hexa_wave_net" or opt.model == "pix2pix_cfo":
                 model.set_current_epoch(epoch)
             model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
 
@@ -140,6 +143,8 @@ if __name__ == '__main__':
                 val_results[epoch][eval_func[0]] = 0.0
 
             with torch.no_grad():
+                if opt.model == "pix2pix_cfo":
+                    model.set_to_validation()
                 for i, data in enumerate(val_dataset):
                     model.set_input(data)
                     pred = model.forward_and_return()

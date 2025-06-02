@@ -12,3 +12,4 @@ pillow<10.0
 numpy
 matplotlib
 datasets
+kornia

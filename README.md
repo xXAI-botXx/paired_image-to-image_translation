@@ -29,9 +29,12 @@ All Architectures got tested but all failed more or less. Most models had the ri
 
 I still think it is a interesting architecture and it is exciting to try out new/other architectures. So the architecture itself may fail for this task but see the architecture(s) as reference and maybe there is only a little issue and the architecture does work.
 
+Moreover this fork implements a Complex Focus Only (Residual Learning) Architecture with Pix2Pix.
+
 
 ### Architecture
 
+Base Hexa-Wave Net Idea:
 ```
         Input: 256x256xC
            ↓
@@ -46,6 +49,33 @@ I still think it is a interesting architecture and it is exciting to try out new
      SIREN Decoder (predicts continuous field from coordinates + latent features)
            ↓
         Output: 256x256xC
+```
+
+Complex Focus Only (Residual Learning) Idea:
+```
+                 +---------------------+
+                 |        OSM          |  ← Input (OpenStreetMap)
+                 +---------------------+
+                           |
+          +----------------+----------------+
+          |                                 |
++-------------------+           +------------------------+
+|    Base Model     |           |     Complex Model      |
+|     (Pix2Pix)     |           |       (Pix2Pix)        |
+| GAN + L1 Loss     |           | GAN + Weighted Loss    |
+| Output: Baseline  |           | Output: Complex Only   |
+|  Propagation Map  |           |  (Reflection/Diff.)    |
++-------------------+           +------------------------+
+          |                                 |
+          +----------------+----------------+
+                           |
+                 +---------------------+
+                 |     Fusion Head     |
+                 |   (Conv2D network)  |
+                 | Input: Base +       |
+                 | Complex On. Outputs |
+                 | Output: Final Map   |
+                 +---------------------+        
 ```
 
 
@@ -175,6 +205,13 @@ HexaWavenet 3 -> MLP Head but with different loss:
 conda activate gan
 cd ~/src/paired_image-to-image_translation
 nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3_other_loss --model hexa_wave_net --n_epochs 64 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 100.0 --lambda_GAN 1.0 --lambda_ssmi 10.0 --lambda_edge 30.0 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3_other_loss.log 2>&1 &
+```
+
+Pix2Pix Complex Focus Only:
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_1 --model pix2pix_cfo --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_1.log 2>&1 &
 ```
 
 
