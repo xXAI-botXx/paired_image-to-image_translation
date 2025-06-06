@@ -36,6 +36,7 @@ class Pix2PixModel(BaseModel):
             parser.set_defaults(pool_size=0, gan_mode='vanilla')
             parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
+            parser.add_argument('--masked', action='store_true', help='Should mask with the target and threshold at 0')
 
         return parser
 
@@ -46,6 +47,7 @@ class Pix2PixModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
+        self.masked = opt.masked
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
@@ -181,7 +183,21 @@ class Pix2PixModel(BaseModel):
             self.loss_G_GAN = self.criterionGAN(pred_fake, True)
         
         # Second, G(A) = B
-        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
+        # L1 loss masked
+        if self.masked:
+            # Compute pixel-wise absolute difference
+            l1_diff = torch.abs(self.fake_B - self.real_B)
+
+            # Create mask where real_B > 0
+            mask = (self.real_B > 0).float() # (self.real_B > 0).astype(np.uint8) * 255
+
+            # Apply mask and normalize
+            masked_l1 = l1_diff * mask
+            num_masked = torch.clamp(mask.sum(), min=1.0)  # prevent division by zero
+            self.loss_G_L1 = masked_l1.sum() / num_masked
+        else:
+            # No masking
+            self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1

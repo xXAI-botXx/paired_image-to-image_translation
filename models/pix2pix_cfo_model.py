@@ -92,11 +92,11 @@ class Pix2PixCFOModel(BaseModel):
         
         complex_opt = deepcopy(opt)
         complex_opt.use_cfg_loss = True
-        self.complex_model = self.netcomplex_model = Pix2PixCFOSubModel(complex_opt)
+        self.complex_model = Pix2PixCFOSubModel(complex_opt)
         self.netcomplex_model_g = self.complex_model.netG
         self.netcomplex_model_d = self.complex_model.netD
 
-        self.fusion_head = self.netfusion_head = self.netfusion_head = FusionHead(input_channels=2)
+        self.fusion_head = self.netfusion_head = FusionHead(input_channels=2)
 
         self.optimizers = [*self.base_model.optimizers, *self.complex_model.optimizers, self.fusion_head.optimizer]
         self.model_names = ['base_model_g', 'base_model_d', 'complex_model_g', 'complex_model_d']  # 'fusion_head'
@@ -204,13 +204,18 @@ class Pix2PixCFOModel(BaseModel):
                     if len(pred.shape) == 4:
                         pred = pred.squeeze(1)
 
-                self.data_idx_train += 1
+                # self.data_idx_train += 1
         else:
             base_pred = self.base_model(self.real_A).unsqueeze(1)
             complex_pred = self.complex_model(self.real_A).unsqueeze(1)
             
             combined = torch.cat([base_x, complex_x], dim=1)
             pred = self.fusion_head(combined)
+            # formular:
+            #   complex = (target - base) * -2
+            #   complex*(-0.5) = target - base
+            #   target = (complex*(-0.5)) + base
+            # pred = (complex_pred*(-0.5)) + base_pred
             if len(pred.shape) == 4:
                 pred = pred.squeeze(1)
 
@@ -276,18 +281,25 @@ class Pix2PixCFOModel(BaseModel):
             # Basline
             pred_ = self.forward_and_return(model_idx=0)
             self.base_model.optimize_parameters(base_data[0], base_data[1], pred_)
+            print(f"\nBaseline Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
 
             # Complex
             pred_ = self.forward_and_return(model_idx=1)
-            self.base_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
+            self.complex_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
+            print(f"\nComplex Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
         else:
             # Fusion
             self.fusion_head.optimizer.zero_grad()
             pred_ = self.forward_and_return(model_idx=2)
             self.fusion_head.backward(target_, pred_)
             self.fusion_head.optimizer.step()
+            print(f"\nFusion Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
 
-        self.data_idx_train += 0
+        self.data_idx_train += 1
+
+        if self.data_idx_train == len(self.datasets[1][0]):
+            self.data_idx_train = 0
+
         self.update_loss()
         # self.adjust_image_shapes()
 
