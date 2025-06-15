@@ -264,8 +264,9 @@ Here I provide results evaluated and trained on the [physgen dataset](https://gi
 | Hexa Wave Net 1 | 37.01 | 180.70 | 37.01 | 11.84 | 180.70 | 31.07 |
 | Hexa Wave Net 2 | 37.58 | 183.57 | 37.58 | 16.41 | 183.58 | 42.98 |
 | Hexa Wave Net 3 | **1.84** | 44.01 | **1.84** | 6.03 | 44.01 | 15.70 |
-| Hexa Wave Net 7 | 2.60 | **18.06** | 2.60 | **3.25** | **18.06** | **8.53** |
+| Hexa Wave Net 7 | 2.60 | **18.06** | 2.60 | **3.25** | 18.06 | **8.53** |
 | Hexa Wave Net 8 | 2.90 | 41.16 | 2.90 | 16.69 | 41.16 | 43.58 |
+| Pix2Pix (from PhysGen) | - | - | 2.14 | 4.79 | **11.30** | 30.67 |
 
 -> All Models are trained 64 Epochs on the Physgen train dataset on the most difficult reflection variation.
 
@@ -282,21 +283,18 @@ It follows example predictions with input, ground truth and difference map.
 **Hexa Wave Net 2**:<br>
 -> HexaWavenet 2 with No Latent Transformer, CNN Decoder + SIREN Decoder + Image <br>
 <img src="./imgs/hexa_pred_2.png"></img> <br>
-evaluation results
 
 <br><br>
 
 **Hexa Wave Net 3**:<br>
 -> HexaWavenet with MLP Head <br>
 <img src="./imgs/hexa_pred_3.png"></img> <br>
-evaluation results
 
 <br><br>
 
 **Hexa Wave Net 7**:<br>
 -> HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transformer Latent Space decoder <br>
 <img src="./imgs/hexa_pred_7.png"></img> <br>
-evaluation results
 
 
 <br><br>
@@ -304,7 +302,6 @@ evaluation results
 **Hexa Wave Net 8**:<br>
 -> HexaWaveNet with a normal CNN Encoder + MLP Head + no SIREN Decoder + Transformer Latent Space decoder <br>
 <img src="./imgs/hexa_pred_8.png"></img> <br>
-evaluation results
 
 
 
