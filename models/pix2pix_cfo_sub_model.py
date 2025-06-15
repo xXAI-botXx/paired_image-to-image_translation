@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -331,7 +333,6 @@ class Pix2PixCFOSubModel(BaseModel):
         self.real_B = input[1].to(self.device)
         self.real_B = self.real_B.unsqueeze(0)
         
-        from collections import OrderedDict
         self.image_names_dict = OrderedDict()
         self.image_names_dict[f'real_A'] = input[0] if len(input[0].shape) == 4 else input[0].unsqueeze(0)
         self.image_names_dict[f'fake_B'] = None 
@@ -375,16 +376,30 @@ class Pix2PixCFOSubModel(BaseModel):
 
         return input_, target_
 
+    def __call__(self, input_):
+        # print(f"Input type: {type(input_)}, Input Shape: {input_.shape}")
+        # preprocessing
+        input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
+        input_ = input_.to(self.device)
+        # input_ = input_.unsqueeze(0)
+
+        # prediction
+        pred = self.netG(input_)
+        pred = torch.clamp(pred, 0.0, 1.0)
+        return pred
+
     def forward(self, input_, target_):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         input_, target_ = self.preprocess_data(input_, target_)
         self.fake_B = self.netG(input_)
+        self.fake_B = torch.clamp(self.fake_B, 0.0, 1.0)
         self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
 
     def forward_and_return(self, input_, target_):
         """Run forward pass and returns the output"""
         input_, target_ = self.preprocess_data(input_, target_)
         self.fake_B = self.netG(input_)
+        self.fake_B = torch.clamp(self.fake_B, 0.0, 1.0)
         self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return self.fake_B
 
@@ -450,10 +465,12 @@ class Pix2PixCFOSubModel(BaseModel):
             self.loss_G_GAN = self.criterionGAN(pred_fake, True)
         
         # Second, G(A) = B
-        if self.use_cfg_loss:
-            self.loss_second = self.combined_loss(pred_, target_)
-        else:
-            self.loss_second = self.criterionL1(pred_, target_)
+        # if self.use_cfg_loss:
+        #     self.loss_second = self.combined_loss(pred_, target_)
+        # else:
+        #     self.loss_second = self.criterionL1(pred_, target_)
+
+        self.loss_second = self.criterionL1(pred_, target_)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_second * self.opt.lambda_second

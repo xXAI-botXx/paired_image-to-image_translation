@@ -1509,8 +1509,9 @@ class HexaWaveNetModel(BaseModel):
             parser.add_argument('--lambda_edge', type=float, default=100.0, help='weight for Edge loss')
             # parser.add_argument('--gan_activate_epoch', type=int, default=50, help='Epoch on which GAN loss is disabled')
             # parser.add_argument('--gan_disable_epoch', type=int, default=100, help='Epoch after which GAN loss is disabled')
-            parser.add_argument('--model_type', type=int, default=1, help='Decides the exact HexaWaveNet model (see in the model.py for the different models).')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
+
+        parser.add_argument('--model_type', type=int, default=1, help='Decides the exact HexaWaveNet model (see in the model.py for the different models).')
 
         return parser
 
@@ -1531,6 +1532,8 @@ class HexaWaveNetModel(BaseModel):
         else:  # during test time, only load G
             self.model_names = ['G']
         # define networks (both generator and discriminator)
+        # FIXME + change me
+        self.opt.model_type = 8
         if self.opt.model_type == 1:
             hexa_wave_net = HexaWaveNetGenerator_1(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size)
         elif self.opt.model_type == 2:

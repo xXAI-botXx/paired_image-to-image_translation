@@ -49,3 +49,9 @@ wandb/
 *.html
 *.csv
 *.json
+
+!/imgs/hexa_pred_1.png
+!/imgs/hexa_pred_2.png
+!/imgs/hexa_pred_3.png
+!/imgs/hexa_pred_7.png
+!/imgs/hexa_pred_8.png

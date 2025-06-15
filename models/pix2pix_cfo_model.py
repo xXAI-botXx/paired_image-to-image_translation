@@ -1,4 +1,5 @@
 from copy import deepcopy
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
@@ -83,40 +84,43 @@ class Pix2PixCFOModel(BaseModel):
         """
         super().__init__(opt)
         self.opt = opt
+        self.isTrain = opt.isTrain
 
         base_opt = deepcopy(opt)
         base_opt.use_cfg_loss = False
         self.base_model = Pix2PixCFOSubModel(base_opt)
         self.netbase_model_g = self.base_model.netG
-        self.netbase_model_d = self.base_model.netD
+        if self.isTrain:
+            self.netbase_model_d = self.base_model.netD
         
         complex_opt = deepcopy(opt)
         complex_opt.use_cfg_loss = True
         self.complex_model = Pix2PixCFOSubModel(complex_opt)
         self.netcomplex_model_g = self.complex_model.netG
-        self.netcomplex_model_d = self.complex_model.netD
+        if self.isTrain:
+            self.netcomplex_model_d = self.complex_model.netD
 
         self.fusion_head = self.netfusion_head = FusionHead(input_channels=2)
 
-        self.optimizers = [*self.base_model.optimizers, *self.complex_model.optimizers, self.fusion_head.optimizer]
-        self.model_names = ['base_model_g', 'base_model_d', 'complex_model_g', 'complex_model_d']  # 'fusion_head'
-        self.visual_names = ['real_A', 'fake_B', 'real_B']
-        self.loss_base_model_g = self.base_model.loss_G_GAN
-        self.loss_base_model_second = self.base_model.loss_second
-        self.loss_base_model_d = self.base_model.loss_D_real
-        self.loss_complex_model_g = self.complex_model.loss_G_GAN
-        self.loss_complex_model_second = self.complex_model.loss_second
-        self.loss_complex_model_d = self.complex_model.loss_D_real
-        self.loss_fusion = self.fusion_head.last_loss
-        self.loss_names = ['base_model_g',
-                           'base_model_second',
-                           'base_model_d',
-                           'complex_model_g',
-                           'complex_model_second',
-                           'complex_model_d',
-                           'fusion']
+        if self.isTrain:
+            self.optimizers = [*self.base_model.optimizers, *self.complex_model.optimizers, self.fusion_head.optimizer]
+            self.model_names = ['base_model_g', 'base_model_d', 'complex_model_g', 'complex_model_d']  # 'fusion_head'
+            self.visual_names = ['real_A', 'fake_B', 'real_B']
+            self.loss_base_model_g = self.base_model.loss_G_GAN
+            self.loss_base_model_second = self.base_model.loss_second
+            self.loss_base_model_d = self.base_model.loss_D_real
+            self.loss_complex_model_g = self.complex_model.loss_G_GAN
+            self.loss_complex_model_second = self.complex_model.loss_second
+            self.loss_complex_model_d = self.complex_model.loss_D_real
+            self.loss_fusion = self.fusion_head.last_loss
+            self.loss_names = ['base_model_g',
+                            'base_model_second',
+                            'base_model_d',
+                            'complex_model_g',
+                            'complex_model_second',
+                            'complex_model_d',
+                            'fusion']
 
-        self.isTrain = opt.isTrain
         if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
             self.train_dataset_base = PhysGenDataset(mode='train', variation="sound_baseline", input_type="osm", output_type="standard")
             self.val_dataset_base = PhysGenDataset(mode='validation', variation="sound_baseline", input_type="osm", output_type="standard")
@@ -128,8 +132,8 @@ class Pix2PixCFOModel(BaseModel):
             self.val_dataset_fusion = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="standard")
             self.datasets = [(self.train_dataset_base, self.val_dataset_base), (self.train_dataset_complex, self.val_dataset_complex), (self.train_dataset_fusion, self.val_dataset_fusion)]
 
-        self.epochs = opt.n_epochs
-        self.train_pix2pix_epochs = int(self.epochs*0.8)
+            self.epochs = opt.n_epochs
+            self.train_pix2pix_epochs = int(self.epochs*0.8)
         self.current_epoch = 0
         self.should_validate = False
         self.data_idx_train = 0
@@ -149,6 +153,13 @@ class Pix2PixCFOModel(BaseModel):
         
         self.real_A = self.base_model.real_A
         self.real_B = self.base_model.real_B
+
+        self.image_names_dict = OrderedDict()
+        self.image_names_dict[f'real_A'] = input_[0] if len(input_[0].shape) == 4 else input_[0].unsqueeze(0)
+        self.image_names_dict[f'fake_B'] = None 
+        self.image_names_dict[f'real_B'] = input_[1] if len(input_[1].shape) == 4 else input_[1].unsqueeze(0)
+
+        self.image_paths = ["./cache_physgen/" + f"building_{input_[2]}.png" if self.opt.direction == 'AtoB' else f"{input_[2]}_LAEQ.png"]
 
     def set_to_validation(self):
         self.should_validate = True
@@ -180,7 +191,7 @@ class Pix2PixCFOModel(BaseModel):
                 base_pred = self.base_model.forward_and_return(*base_data).unsqueeze(1)
                 complex_pred = self.complex_model.forward_and_return(*complex_data).unsqueeze(1)
                 
-                combined = torch.cat([base_x, complex_x], dim=1)
+                combined = torch.cat([base_pred, complex_pred], dim=1)
                 pred = self.fusion_head(combined)
                 if len(pred.shape) == 4:
                     pred = pred.squeeze(1)
@@ -199,23 +210,23 @@ class Pix2PixCFOModel(BaseModel):
                     base_pred = self.base_model.forward_and_return(base_data[0], base_data[1]).unsqueeze(1)
                     complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1]).unsqueeze(1)
                     
-                    combined = torch.cat([base_x, complex_x], dim=1)
+                    combined = torch.cat([base_pred, complex_pred], dim=1)
                     pred = self.fusion_head(combined)
                     if len(pred.shape) == 4:
                         pred = pred.squeeze(1)
 
                 # self.data_idx_train += 1
         else:
-            base_pred = self.base_model(self.real_A).unsqueeze(1)
-            complex_pred = self.complex_model(self.real_A).unsqueeze(1)
+            base_pred = self.base_model(self.real_A)
+            complex_pred = self.complex_model(self.real_A)
             
-            combined = torch.cat([base_x, complex_x], dim=1)
-            pred = self.fusion_head(combined)
+            # combined = torch.cat([base_pred, complex_pred], dim=1)
+            # pred = self.fusion_head(combined)
             # formular:
             #   complex = (target - base) * -2
             #   complex*(-0.5) = target - base
             #   target = (complex*(-0.5)) + base
-            # pred = (complex_pred*(-0.5)) + base_pred
+            pred = (complex_pred*(-0.5)) + base_pred
             if len(pred.shape) == 4:
                 pred = pred.squeeze(1)
 
@@ -227,6 +238,7 @@ class Pix2PixCFOModel(BaseModel):
         # elif fake_B.dim() == 2:
         #     fake_B = fake_B.unsqueeze(0)
         self.fake_B = pred
+        self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return pred
 
     def adjust_image_shapes(self):
@@ -310,6 +322,10 @@ def to_device(dataset):
         raise ValurError("Expected dataset to be a list of 3 values")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return [dataset[0].to(device), dataset[1].to(device), dataset[2]]
+
+
+def get_image_paths(self):
+    pass
 
 
 
