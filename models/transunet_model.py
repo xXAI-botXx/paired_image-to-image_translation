@@ -8,6 +8,94 @@ import kornia
 from .base_model import BaseModel
 from . import networks
 
+from torchvision import models
+
+class PatchEmbedding(nn.Module):
+    def __init__(self, in_channels=3, patch_size=16, emb_size=768, img_size=256):
+        super().__init__()
+        self.patch_size = patch_size
+        self.n_patches = (img_size // patch_size) ** 2
+        self.proj = nn.Conv2d(in_channels, emb_size, kernel_size=patch_size, stride=patch_size)
+        
+    def forward(self, x):
+        x = self.proj(x)  # (B, emb_size, H/patch, W/patch)
+        x = x.flatten(2)  # (B, emb_size, N_patches)
+        x = x.transpose(1, 2)  # (B, N_patches, emb_size)
+        return x
+
+class TransformerEncoderLayer(nn.Module):
+    def __init__(self, emb_size=768, num_heads=8, dropout=0.1, forward_expansion=4):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(emb_size)
+        self.attn = nn.MultiheadAttention(emb_size, num_heads, dropout=dropout)
+        self.norm2 = nn.LayerNorm(emb_size)
+        self.ff = nn.Sequential(
+            nn.Linear(emb_size, emb_size * forward_expansion),
+            nn.GELU(),
+            nn.Linear(emb_size * forward_expansion, emb_size)
+        )
+        self.dropout = nn.Dropout(dropout)
+        
+    def forward(self, x):
+        # x shape: (N, B, emb_size) for nn.MultiheadAttention, also transpose batch and seq dim
+        x_ = self.norm1(x)
+        attn_output, _ = self.attn(x_, x_, x_)
+        x = x + self.dropout(attn_output)
+        x_ = self.norm2(x)
+        ff_output = self.ff(x_)
+        x = x + self.dropout(ff_output)
+        return x
+
+class TransformerEncoder(nn.Module):
+    def __init__(self, emb_size=768, depth=6, num_heads=8):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            TransformerEncoderLayer(emb_size, num_heads) for _ in range(depth)
+        ])
+        
+    def forward(self, x):
+        # x shape: (B, N, emb_size)
+        x = x.transpose(0, 1)  # (N, B, emb_size)
+        for layer in self.layers:
+            x = layer(x)
+        x = x.transpose(0, 1)  # (B, N, emb_size)
+        return x
+
+class TransUNet(nn.Module):
+    def __init__(self, img_size=256, patch_size=16, emb_size=768, num_heads=8, depth=6):
+        super().__init__()
+        self.patch_embed = PatchEmbedding(in_channels=1, patch_size=patch_size, emb_size=emb_size, img_size=img_size)
+        self.encoder = TransformerEncoder(emb_size, depth, num_heads)
+        
+        # Decoder
+        self.decoder_conv1 = nn.ConvTranspose2d(emb_size, 256, kernel_size=2, stride=2)
+        self.decoder_conv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.decoder_conv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.decoder_conv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        
+        self.final_conv = nn.Conv2d(32, 1, kernel_size=1)  # 1 Output Kanal
+        
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.emb_size = emb_size
+        
+    def forward(self, x):
+        B = x.size(0)
+        x = self.patch_embed(x)  # (B, N, emb_size)
+        x = self.encoder(x)      # (B, N, emb_size)
+        
+        h = w = self.img_size // self.patch_size
+        x = x.permute(0, 2, 1).contiguous()  # (B, emb_size, N)
+        x = x.view(B, self.emb_size, h, w)   # (B, emb_size, h, w)
+        
+        x = F.relu(self.decoder_conv1(x))
+        x = F.relu(self.decoder_conv2(x))
+        x = F.relu(self.decoder_conv3(x))
+        x = F.relu(self.decoder_conv4(x))
+        
+        x = self.final_conv(x)  # Output 1-Kanal
+        return x
+
 class WeightedCombinedLoss(nn.Module):
     def __init__(self, 
                  silog_lambda=0.5, 
@@ -16,6 +104,7 @@ class WeightedCombinedLoss(nn.Module):
                  weight_ssim=5.0,
                  weight_edge_aware=10.0,
                  weight_l1=1.0,
+                 weight_mape=1.0,
                  weight_var=1.0,
                  weight_range=1.0,
                  weight_blur=1.0):
@@ -26,6 +115,7 @@ class WeightedCombinedLoss(nn.Module):
         self.weight_ssim = weight_ssim
         self.weight_edge_aware = weight_edge_aware
         self.weight_l1 = weight_l1
+        self.weight_mape = weight_mape
         self.weight_var = weight_var
         self.weight_range = weight_range
         self.weight_blur = weight_blur
@@ -34,6 +124,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_grad = 0
         self.avg_loss_ssim = 0
         self.avg_loss_l1 = 0
+        self.avg_loss_mape = 0
         self.avg_loss_edge_aware = 0
         self.avg_loss_var = 0
         self.avg_loss_range = 0
@@ -122,6 +213,10 @@ class WeightedCombinedLoss(nn.Module):
         loss = torch.abs(target - pred) * weight_map
         return loss.mean()
 
+    def mape_loss(self, prediction, target, eps=1e-6):
+        not_null_target = torch.clamp(torch.abs(target), min=eps)
+        return torch.mean(torch.abs((prediction - target) / not_null_target))
+
     def variance_loss(self, pred, target):
         pred_var = torch.var(pred)
         target_var = torch.var(target)
@@ -158,6 +253,7 @@ class WeightedCombinedLoss(nn.Module):
         loss_grad = self.gradient_l1_loss(pred, target, weight_map)
         loss_ssim = self.ssim_loss(pred, target, weight_map)
         loss_l1 = self.l1_loss(pred, target, weight_map)
+        loss_mape = self.mape_loss(pred, target)
         loss_edge_aware = self.edge_aware_loss(pred, target, weight_map)
         loss_var = self.variance_loss(pred, target)
         loss_range = self.range_loss(pred, target)
@@ -167,6 +263,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_grad += loss_grad
         self.avg_loss_ssim += loss_ssim
         self.avg_loss_l1 += loss_l1
+        self.avg_loss_mape += loss_mape
         self.avg_loss_edge_aware += loss_edge_aware
         self.avg_loss_var += loss_var
         self.avg_loss_range += loss_range
@@ -179,6 +276,7 @@ class WeightedCombinedLoss(nn.Module):
             self.weight_ssim * loss_ssim +
             self.weight_edge_aware * loss_edge_aware +
             self.weight_l1 * loss_l1 +
+            self.weight_mape * loss_mape +
             self.weight_var * loss_var +
             self.weight_range * loss_range +
             self.weight_blur * loss_blur
@@ -190,6 +288,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_grad = 0
         self.avg_loss_ssim = 0
         self.avg_loss_l1 = 0
+        self.avg_loss_mape = 0
         self.avg_loss_edge_aware = 0
         self.avg_loss_var = 0
         self.avg_loss_range = 0
@@ -201,6 +300,7 @@ class WeightedCombinedLoss(nn.Module):
                 self.avg_loss_grad/self.steps,
                 self.avg_loss_ssim/self.steps,
                 self.avg_loss_l1/self.steps,
+                self.avg_loss_mape/self.steps,
                 self.avg_loss_edge_aware/self.steps,
                 self.avg_loss_var/self.steps,
                 self.avg_loss_range/self.steps,
@@ -208,12 +308,13 @@ class WeightedCombinedLoss(nn.Module):
                )
 
     def get_dict(self, data_idx):
-        loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range = self.get_avg_losses()
+        loss_silog, loss_grad, loss_ssim, loss_l1, loss_mape, loss_edge_aware, loss_var, loss_range = self.get_avg_losses()
         return {
                 f"{data_idx}_loss silog": loss_silog, 
                 f"{data_idx}_loss grad": loss_grad, 
                 f"{data_idx}_loss ssim": loss_ssim,
                 f"{data_idx}_loss L1": loss_l1,
+                f"{data_idx}_loss MAPE": loss_mape,
                 f"{data_idx}_loss edge aware": loss_edge_aware,
                 f"{data_idx}_loss var": loss_var,
                 f"{data_idx}_loss range": loss_range,
@@ -222,6 +323,7 @@ class WeightedCombinedLoss(nn.Module):
                 f"{data_idx}_weight loss grad": self.weight_grad,
                 f"{data_idx}_weight loss ssim": self.weight_ssim,
                 f"{data_idx}_weight loss L1": self.weight_l1,
+                f"{data_idx}_weight loss MAPE": self.weight_mape,
                 f"{data_idx}_weight loss edge aware": self.weight_edge_aware,
                 f"{data_idx}_weight loss var": self.weight_var,
                 f"{data_idx}_weight loss range": self.weight_range,
@@ -248,15 +350,15 @@ def calc_weight_map(target):
 
     return weights_map
 
-class Pix2PixModel(BaseModel):
-    """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
+class TransUNetModel(BaseModel):
+    """ This class implements the trans u net model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
     By default, it uses a '--netG unet256' U-Net generator,
     a '--netD basic' discriminator (PatchGAN),
     and a '--gan_mode' vanilla GAN loss (the cross-entropy objective used in the orignal GAN paper).
 
-    pix2pix paper: https://arxiv.org/pdf/1611.07004.pdf
+    Based on: https://github.com/Beckschen/TransUNet 
     """
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -303,8 +405,14 @@ class Pix2PixModel(BaseModel):
         else:  # during test time, only load G
             self.model_names = ['G']
         # define networks (both generator and discriminator)
-        self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                      not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        # self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+        #                               not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.generator = TransUNet(img_size=256, patch_size=16, emb_size=768, num_heads=8, depth=6)
+        self.netG = networks.init_net(self.generator, 
+                                      opt.init_type, 
+                                      opt.init_gain, 
+                                      self.gpu_ids)
 
         if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
             self.netD = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf, opt.netD,
@@ -332,37 +440,13 @@ class Pix2PixModel(BaseModel):
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
                                             weight_ssim=0.0,
-                                            weight_edge_aware=1000.0,
-                                            weight_l1=0.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_mape=10.0,
                                             weight_var=0.0,
                                             weight_range=0.0,
-                                            weight_blur=10.0
+                                            weight_blur=0.0
                                 )
-
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=1000.0, 
-        #                                     weight_ssim=50.0,
-        #                                     weight_edge_aware=1000.0,
-        #                                     weight_l1=1000.0,
-        #                                     weight_var=10.0,
-        #                                     weight_range=10.0,
-        #                                     weight_blur=100.0
-        #                         )
-
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp_l1
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=0.0, 
-        #                                     weight_ssim=0.0,
-        #                                     weight_edge_aware=0.0,
-        #                                     weight_l1=100.0,
-        #                                     weight_var=0.0,
-        #                                     weight_range=0.0,
-        #                                     weight_blur=0.0
-        #                         )
-        # self.lambda_GAN = 1000.0
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.

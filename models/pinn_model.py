@@ -3,10 +3,195 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
 
+from timm.models.vision_transformer import vit_base_patch16_224
+import segmentation_models_pytorch as smp
+from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
+
 import kornia
 
 from .base_model import BaseModel
 from . import networks
+
+class UNet(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UNet, self).__init__()
+
+        def conv_block(in_c, out_c):
+            return nn.Sequential(
+                nn.Conv2d(in_c, out_c, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(out_c, out_c, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True)
+            )
+
+        self.down1 = conv_block(in_channels, 64)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.down2 = conv_block(64, 128)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.down3 = conv_block(128, 256)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.down4 = conv_block(256, 512)
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.bottleneck = conv_block(512, 1024)
+
+        self.up1 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
+        self.conv_up1 = conv_block(1024, 512)
+        self.up2 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.conv_up2 = conv_block(512, 256)
+        self.up3 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.conv_up3 = conv_block(256, 128)
+        self.up4 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.conv_up4 = conv_block(128, 64)
+
+        self.out_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+
+    def forward(self, x):
+        d1 = self.down1(x)
+        p1 = self.pool1(d1)
+        d2 = self.down2(p1)
+        p2 = self.pool2(d2)
+        d3 = self.down3(p2)
+        p3 = self.pool3(d3)
+        d4 = self.down4(p3)
+        p4 = self.pool4(d4)
+
+        bottleneck = self.bottleneck(p4)
+
+        u1 = self.up1(bottleneck)
+        u1 = torch.cat([u1, d4], dim=1)
+        u1 = self.conv_up1(u1)
+        u2 = self.up2(u1)
+        u2 = torch.cat([u2, d3], dim=1)
+        u2 = self.conv_up2(u2)
+        u3 = self.up3(u2)
+        u3 = torch.cat([u3, d2], dim=1)
+        u3 = self.conv_up3(u3)
+        u4 = self.up4(u3)
+        u4 = torch.cat([u4, d1], dim=1)
+        u4 = self.conv_up4(u4)
+
+        return self.out_conv(u4)
+
+class PINN(nn.Module):
+    def __init__(self, in_channels, out_channels, k_value=None):
+        super(PINN, self).__init__()
+        self.unet = UNet(in_channels, out_channels)
+        self.k_value = k_value # Wave number for Helmholtz equation
+
+    def forward(self, x):
+        return self.unet(x)
+
+    def helmholtz_loss(self, u_pred, x_coords, y_coords, sample_points=None):
+        # Ensure u_pred requires gradients for autograd
+        u_pred_grad = u_pred.clone()
+        u_pred_grad.requires_grad_(True)
+
+        # Ensure coordinates require gradients
+        x_coords.requires_grad_(True)
+        y_coords.requires_grad_(True)
+
+        if sample_points is not None:
+            # Randomly sample points for physics loss calculation
+            # Flatten the spatial dimensions to easily sample points
+            u_pred_flat_spatial = u_pred_grad.view(u_pred_grad.shape[0], u_pred_grad.shape[1], -1)
+            x_coords_flat_spatial = x_coords.view(x_coords.shape[0], x_coords.shape[1], -1)
+            y_coords_flat_spatial = y_coords.view(y_coords.shape[0], y_coords.shape[1], -1)
+
+            # Generate random indices for sampling
+            num_pixels = u_pred_flat_spatial.shape[2]
+            indices = torch.randperm(num_pixels, device=u_pred_grad.device)[:sample_points]
+
+            # Select sampled points for each batch and channel
+            u_pred_sampled = u_pred_flat_spatial[:, :, indices]
+            x_coords_sampled = x_coords_flat_spatial[:, :, indices]
+            y_coords_sampled = y_coords_flat_spatial[:, :, indices]
+
+            # Flatten for autograd.grad, ensuring each element is treated independently
+            u_pred_flat = u_pred_sampled.view(-1)
+            x_flat = x_coords_sampled.view(-1)
+            y_flat = y_coords_sampled.view(-1)
+        else:
+            u_pred_flat = u_pred_grad.reshape(-1)
+            x_flat = x_coords.view(-1)
+            y_flat = y_coords.view(-1)
+
+        # Calculate first derivatives
+        # Using torch.ones_like(u_pred_flat) for grad_outputs ensures that the sum of gradients is computed.
+        # create_graph=True is essential for computing second derivatives.
+        print("CHECK", u_pred_flat.requires_grad, x_flat.requires_grad)
+        du_dx = autograd.grad(u_pred_flat, x_flat, grad_outputs=torch.ones_like(u_pred_flat), create_graph=True, allow_unused=True)[0]
+        print("du_dx.requires_grad:", du_dx.requires_grad)
+        print("du_dx.grad_fn:", du_dx.grad_fn)
+        print("du_dx is None:", du_dx is None)
+        print("du_dx.shape:", None if du_dx is None else du_dx.shape)
+        du_dy = autograd.grad(u_pred_flat, y_flat, grad_outputs=torch.ones_like(u_pred_flat), create_graph=True, allow_unused=True)[0]
+
+        # Handle None gradients by replacing them with zeros
+        du_dx = du_dx if du_dx is not None else torch.zeros_like(u_pred_flat)
+        du_dy = du_dy if du_dy is not None else torch.zeros_like(u_pred_flat)
+
+        # Calculate second derivatives (Laplacian)
+        # Again, create_graph=True is needed for the subsequent backward pass through the physics loss.
+        d2u_dx2 = autograd.grad(du_dx, x_flat, grad_outputs=torch.ones_like(du_dx), create_graph=True, allow_unused=True)[0]
+        d2u_dy2 = autograd.grad(du_dy, y_flat, grad_outputs=torch.ones_like(du_dy), create_graph=True, allow_unused=True)[0]
+
+        # Handle None gradients for second derivatives
+        d2u_dx2 = d2u_dx2 if d2u_dx2 is not None else torch.zeros_like(u_pred_flat)
+        d2u_dy2 = d2u_dy2 if d2u_dy2 is not None else torch.zeros_like(u_pred_flat)
+
+        laplacian_u = d2u_dx2 + d2u_dy2
+
+        if self.k_value is None:
+            return torch.zeros_like(u_pred_flat).mean()
+        else:
+            # If sampling, u_pred_grad needs to be sampled too for the k_value term
+            if sample_points is not None:
+                physics_loss = laplacian_u + (self.k_value**2) * u_pred_sampled.reshape(-1)
+            else:
+                physics_loss = laplacian_u + (self.k_value**2) * u_pred_flat
+            return torch.mean(physics_loss**2)
+
+    def boundary_loss(self, u_pred, osm_image, target_value=0.0):
+        boundary_mask = (osm_image == 0).float()
+        return torch.mean((u_pred * boundary_mask - target_value * boundary_mask)**2)
+
+def mape_loss(prediction, target, eps=1e-6):
+    not_null_target = torch.clamp(torch.abs(target), min=eps)
+    return torch.mean(torch.abs((prediction - target) / not_null_target))
+
+def calc_pinn_loss(model, input_image, target):
+    B, C, H, W = input_image.shape
+    x = torch.linspace(0, 1, W, device=input_image.device, requires_grad=True).reshape(1, 1, 1, W).expand(B, -1, H, -1)
+    y = torch.linspace(0, 1, H, device=input_image.device, requires_grad=True).reshape(1, 1, H, 1).expand(B, -1, -1, W)
+
+    x.requires_grad_(True)
+    y.requires_grad_(True)
+
+    input_with_coords = torch.cat([input_image, x, y], dim=1)  # Shape: [B, C+2, H, W]
+    input_with_coords.requires_grad_(True)
+
+    prediction = model(input_with_coords)
+    prediction.requires_grad_(True)
+
+    cur_helmholtz_loss = model.helmholtz_loss(prediction, x, y) #, sample_points=1000)
+    # print(f"Helmholtz Loss (sampled): {cur_helmholtz_loss.item()}")
+
+    cur_boundary_loss = model.boundary_loss(prediction, input_image)
+    # print(f"Boundary Loss: {cur_boundary_loss.item()}")
+
+    cur_mape_loss = mape_loss(prediction, target)
+    # print(f"MAPE Loss: {cur_mape_loss.item()}")
+
+    lambda_physics = 0.1
+    lambda_boundary = 0.5
+    lambda_mape = 1.0
+    total_loss = cur_helmholtz_loss * lambda_physics + \
+                 cur_boundary_loss * lambda_boundary + \
+                 cur_mape_loss * lambda_mape
+    # print(f"Total Loss (example): {total_loss.item()}")
+
+    return total_loss
 
 class WeightedCombinedLoss(nn.Module):
     def __init__(self, 
@@ -248,15 +433,14 @@ def calc_weight_map(target):
 
     return weights_map
 
-class Pix2PixModel(BaseModel):
-    """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
+
+
+class PINNModel(BaseModel):
+    """ This class implements the stacked ResUNet model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
-    By default, it uses a '--netG unet256' U-Net generator,
     a '--netD basic' discriminator (PatchGAN),
     and a '--gan_mode' vanilla GAN loss (the cross-entropy objective used in the orignal GAN paper).
-
-    pix2pix paper: https://arxiv.org/pdf/1611.07004.pdf
     """
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -273,7 +457,6 @@ class Pix2PixModel(BaseModel):
         The training objective is: GAN Loss + lambda_L1 * ||G(A)-B||_1
         By default, we use vanilla GAN loss, UNet with batchnorm, and aligned datasets.
         """
-        # changing the default values to match the pix2pix paper (https://phillipi.github.io/pix2pix/)
         parser.set_defaults(norm='batch', netG='unet_256', dataset_mode='aligned')
         if is_train:
             parser.set_defaults(pool_size=0, gan_mode='vanilla')
@@ -284,7 +467,7 @@ class Pix2PixModel(BaseModel):
         return parser
 
     def __init__(self, opt):
-        """Initialize the pix2pix class.
+        """Initialization.
 
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
@@ -327,42 +510,9 @@ class Pix2PixModel(BaseModel):
         self.forward_passes = 0
         self.current_epoch = 0
 
-        # pix2pix_1_0_residual_few_bui_masked_engineered
-        self.weighted_loss = WeightedCombinedLoss( 
-                                            weight_silog=0.0, 
-                                            weight_grad=0.0, 
-                                            weight_ssim=0.0,
-                                            weight_edge_aware=1000.0,
-                                            weight_l1=0.0,
-                                            weight_var=0.0,
-                                            weight_range=0.0,
-                                            weight_blur=10.0
-                                )
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.generator = PINN(in_channels=3, out_channels=1, k_value=9.16).to(device)
 
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=1000.0, 
-        #                                     weight_ssim=50.0,
-        #                                     weight_edge_aware=1000.0,
-        #                                     weight_l1=1000.0,
-        #                                     weight_var=10.0,
-        #                                     weight_range=10.0,
-        #                                     weight_blur=100.0
-        #                         )
-
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp_l1
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=0.0, 
-        #                                     weight_ssim=0.0,
-        #                                     weight_edge_aware=0.0,
-        #                                     weight_l1=100.0,
-        #                                     weight_var=0.0,
-        #                                     weight_range=0.0,
-        #                                     weight_blur=0.0
-        #                         )
-        # self.lambda_GAN = 1000.0
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -418,16 +568,28 @@ class Pix2PixModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.fake_B = self.netG(self.real_A)  # G(A)
-        if self.opt.dataset_mode.lower() == "physgen":
-            self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
+        input_image = self.real_A
+        B, C, H, W = input_image.shape
+        self.x = torch.linspace(0, 1, W, device=input_image.device, requires_grad=True).reshape(1, 1, 1, W).expand(B, -1, H, -1)
+        self.y = torch.linspace(0, 1, H, device=input_image.device, requires_grad=True).reshape(1, 1, H, 1).expand(B, -1, -1, W)
 
-    def forward_and_return(self):
-        """Run forward pass and returns the output"""
-        self.fake_B = self.netG(self.real_A)  # G(A)
+        self.x.requires_grad_(True)
+        self.y.requires_grad_(True)
+
+        coords = torch.cat([self.x, self.y], dim=1)  # Shape: [B, 2, H, W]
+        coords.requires_grad_(True)
+        input_with_coords = torch.cat([input_image, coords.to(input_image.device)], dim=1)  # Shape: [B, C+2, H, W]
+        input_with_coords.requires_grad_(True)
+
+        self.fake_B = self.generator(input_with_coords)
+        # self.fake_B = self.generator(self.real_A)  # G(A)
         if self.opt.dataset_mode.lower() == "physgen":
             self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return self.fake_B
+
+    def forward_and_return(self):
+        """Run forward pass and returns the output"""
+        return self.forward()
 
     def backward_D(self):
         """Calculate GAN loss for the discriminator"""
@@ -472,29 +634,10 @@ class Pix2PixModel(BaseModel):
         
         # Second, G(A) = B
         # L1 loss masked
-        if self.masked:
-            # Compute pixel-wise absolute difference
-            l1_diff = torch.abs(self.fake_B - self.real_B)
-
-            # Create mask where real_B > 0
-            mask = (self.real_B > 0).float() # (self.real_B > 0).astype(np.uint8) * 255
-
-            # Apply mask and normalize
-            if False:
-                masked_l1 = l1_diff * mask
-                num_masked = torch.clamp(mask.sum(), min=1.0)  # prevent division by zero
-                self.loss_G_L1 = masked_l1.sum() / num_masked
-            else:
-                if self.train_mask_area:
-                    self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=mask) 
-                    # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
-                else:
-                    inverted_mask = 1 - mask
-                    self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=inverted_mask) 
-        else:
-            # No masking
-            # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
-            self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
+        # No masking
+        # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
+        # self.loss_G_L1 = calc_pinn_loss(model=self.generator, input_image=self.real_A, prediction=self.fake_B, target=self.real_B, x=self.x, y=self.y)
+        self.loss_G_L1 = calc_pinn_loss(model=self.generator, input_image=self.real_A, target=self.real_B)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1

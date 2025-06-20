@@ -1,4 +1,19 @@
-Contents:
+
+### Notice
+
+This fork changes a Pix2Pix Fork for applying NoiseModelling Dataset (also Base Simulation as input) and the PhysGen Dataset with the Pix2Pix Model. It also adds some helpful [run commands](#start-a-training-in-remote-ssh).<br>
+This fork adds following architectures: Stacked U-Net, TransU-Net & TransConvUNext.<br>
+This fork also adds some additional architecture try outs. All are collected under the name "Hexa Wave Net" but some are just transformer or other architectures. See the [Hexa Wave Net python file](./models/hexa_wave_net_model.py) for the different architectures. The new argument *--model_type* defines the used architecture.
+
+All Architectures got tested and some did make good results but it would need more engineering (learning rate, loss, ...) and testing to really tell about the results.
+
+I still think it is a interesting architecture and it is exciting to try out new/other architectures. So the architecture itself may fail for this task but see the architecture(s) as reference and maybe there is only a little issue and the architecture does work.
+
+Moreover this fork implements a Complex Focus Only (Residual Learning) Architecture with Pix2Pix.
+
+<br><br>
+
+### Contents:
 - [Hexa Wave Net](#hexa-wave-net)
   - [Notice for this fork](#notice)
   - [Architecture](#architecture)
@@ -19,17 +34,6 @@ Contents:
 <img src="./imgs/hexa_wave_net_logo_2.jpg"></img>
 
 <br><br>
-
-### Notice
-
-This fork changes a Pix2Pix Fork for applying NoiseModelling Dataset (also Base Simulation as input) and the PhysGen Dataset with the Pix2Pix Model. It also adds some helpful [run commands](#start-a-training-in-remote-ssh).<br>
-This fork also adds some other architecture try outs. All are collected under the name "Hexa Wave Net" but some are just transformer or other architectures. See the [Hexa Wave Net python file](./models/hexa_wave_net_model.py) for the different architectures. The new argument *--model_type* defines the used architecture.
-
-All Architectures got tested and some did made good results but it would need more engineering (learning rate, loss, ...) and testing to really tell about the results.
-
-I still think it is a interesting architecture and it is exciting to try out new/other architectures. So the architecture itself may fail for this task but see the architecture(s) as reference and maybe there is only a little issue and the architecture does work.
-
-Moreover this fork implements a Complex Focus Only (Residual Learning) Architecture with Pix2Pix.
 
 
 ### Architecture
@@ -210,6 +214,17 @@ cd ~/src/paired_image-to-image_translation
 nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_2 --model pix2pix_cfo --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_2.log 2>&1 &
 
 nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_2_wgangp --model pix2pix_cfo --n_epochs 20 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --wgangp  --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_2_wgangp.log 2>&1 &
+```
+
+
+Physgen Prediction with TransU-Net & TransConvUNext:
+```bash
+cd ~/src/paired_image-to-image_translation
+conda activate gan
+
+nohup python train.py --dataroot ~/data/does_not_matter  --name transunet_1_0 --model transunet --n_epochs 100 --lr 0.0002 --beta1 0.5 --batch_size 12 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size inf --use_wandb --wandb_project_name Master-PhysGen > ./transunet_1_0.log 2>&1 &
+
+nohup python train.py --dataroot ~/data/does_not_matter  --name transconvunext_1_0 --model transconvunext --n_epochs 100 --lr 0.0002 --beta1 0.5 --batch_size 12 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size inf --use_wandb --wandb_project_name Master-PhysGen > ./transconvunext_1_0.log 2>&1 &
 ```
 
 

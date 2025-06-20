@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.autograd as autograd
 
 import kornia
 
@@ -248,15 +247,115 @@ def calc_weight_map(target):
 
     return weights_map
 
-class Pix2PixModel(BaseModel):
-    """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, batch_norm=True):
+        super().__init__()
+        self.layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),
+            nn.LeakyReLU(inplace=True)
+        ]
+
+        if batch_norm:
+            self.layers.insert(1, nn.BatchNorm2d(out_channels))
+
+        self.block = nn.Sequential(*self.layers)
+
+    def forward(self, x):
+        return self.block(x)
+
+class ResBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv_1 = ConvBlock(channels, channels)
+        self.conv_2 = ConvBlock(channels, channels)
+
+    def forward(self, x):
+        return x + self.conv_2( self.conv_1(x) )
+
+class ResUNet(nn.Module):
+    def __init__(self, in_channels=2, out_channels=1, n_features=[64, 128, 256, 512]):
+        super().__init__()
+        self.encoder = nn.ModuleList()
+        self.pool = nn.MaxPool2d(2, 2)
+
+        prev_channels = in_channels
+        for cur_n_features in n_features:
+            self.encoder.append(nn.Sequential(
+                                    ConvBlock(prev_channels, cur_n_features),
+                                    ResBlock(cur_n_features)
+                                ))
+            prev_channels = cur_n_features
+        
+        self.bottleneck = nn.Sequential(
+            ConvBlock(n_features[-1], n_features[-1]),
+            ResBlock(n_features[-1])
+        )
+
+        self.up_convs = nn.ModuleList()
+        self.decoder = nn.ModuleList()
+
+        for cur_n_features in n_features[::-1]:
+            self.up_convs.append(nn.ConvTranspose2d(prev_channels, cur_n_features, kernel_size=2, stride=2))
+            self.decoder.append(nn.Sequential(
+                                    ConvBlock(cur_n_features*2, cur_n_features),
+                                    ResBlock(cur_n_features)
+                                ))
+            prev_channels = cur_n_features
+
+        self.final_conv = nn.Conv2d(n_features[0], out_channels, kernel_size=1)
+
+
+    def forward(self, x):
+        skip_connections = []
+
+        # down sampling
+        for cur_encoder in self.encoder:
+            x = cur_encoder(x)
+            skip_connections += [x]
+            x = self.pool(x)
+
+        x = self.bottleneck(x)
+        skip_connections = skip_connections[::-1]  # revert skip connections
+
+        # up sampling -> up, skip, decode
+        for cur_decoder_idx in range(len(self.decoder)):
+            # up
+            x = self.up_convs[cur_decoder_idx](x)
+
+            # skip
+            cur_skip_connection = skip_connections[cur_decoder_idx]
+            if x.shape != cur_skip_connection.shape:
+                x = F.interpolate(x, size=cur_skip_connection.shape[2:])  # skip the channel/batch sizes
+            x = torch.cat((cur_skip_connection, x), dim=1)
+            
+            # decode
+            x = self.decoder[cur_decoder_idx](x)
+
+        return self.final_conv(x)
+
+class StackedResUNet(nn.Module):
+    def __init__(self, stages=6, in_channels=1, out_channels=1):
+        super().__init__()
+        self.stages = stages
+        self.unets = nn.ModuleList()
+        for _ in range(stages):
+            self.unets.append(ResUNet(in_channels+out_channels, out_channels))
+
+    def forward(self, x):
+        output = torch.zeros(x.size(0), 1, x.size(2), x.size(3), device=x.device)
+
+        for cur_unet in self.unets:
+            input_cat = torch.cat([x, output], dim=1)
+            output = cur_unet(input_cat)
+        
+        return output
+
+class StackedResUNetModel(BaseModel):
+    """ This class implements the stacked ResUNet model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
-    By default, it uses a '--netG unet256' U-Net generator,
     a '--netD basic' discriminator (PatchGAN),
     and a '--gan_mode' vanilla GAN loss (the cross-entropy objective used in the orignal GAN paper).
-
-    pix2pix paper: https://arxiv.org/pdf/1611.07004.pdf
     """
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -273,7 +372,6 @@ class Pix2PixModel(BaseModel):
         The training objective is: GAN Loss + lambda_L1 * ||G(A)-B||_1
         By default, we use vanilla GAN loss, UNet with batchnorm, and aligned datasets.
         """
-        # changing the default values to match the pix2pix paper (https://phillipi.github.io/pix2pix/)
         parser.set_defaults(norm='batch', netG='unet_256', dataset_mode='aligned')
         if is_train:
             parser.set_defaults(pool_size=0, gan_mode='vanilla')
@@ -284,7 +382,7 @@ class Pix2PixModel(BaseModel):
         return parser
 
     def __init__(self, opt):
-        """Initialize the pix2pix class.
+        """Initialization.
 
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
@@ -332,37 +430,16 @@ class Pix2PixModel(BaseModel):
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
                                             weight_ssim=0.0,
-                                            weight_edge_aware=1000.0,
-                                            weight_l1=0.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
                                             weight_var=0.0,
                                             weight_range=0.0,
-                                            weight_blur=10.0
+                                            weight_blur=0.0
                                 )
 
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=1000.0, 
-        #                                     weight_ssim=50.0,
-        #                                     weight_edge_aware=1000.0,
-        #                                     weight_l1=1000.0,
-        #                                     weight_var=10.0,
-        #                                     weight_range=10.0,
-        #                                     weight_blur=100.0
-        #                         )
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.stacked_resunet_generator = StackedResUNet(stages=3, in_channels=1, out_channels=1).to(device)
 
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp_l1
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=0.0, 
-        #                                     weight_ssim=0.0,
-        #                                     weight_edge_aware=0.0,
-        #                                     weight_l1=100.0,
-        #                                     weight_var=0.0,
-        #                                     weight_range=0.0,
-        #                                     weight_blur=0.0
-        #                         )
-        # self.lambda_GAN = 1000.0
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -418,13 +495,13 @@ class Pix2PixModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.fake_B = self.netG(self.real_A)  # G(A)
+        self.fake_B = self.stacked_resunet_generator(self.real_A)  # G(A)
         if self.opt.dataset_mode.lower() == "physgen":
             self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
 
     def forward_and_return(self):
         """Run forward pass and returns the output"""
-        self.fake_B = self.netG(self.real_A)  # G(A)
+        self.fake_B = self.stacked_resunet_generator(self.real_A)  # G(A)
         if self.opt.dataset_mode.lower() == "physgen":
             self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return self.fake_B

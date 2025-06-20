@@ -13,3 +13,5 @@ numpy
 matplotlib
 datasets
 kornia
+timm 
+segmentation-models-pytorch

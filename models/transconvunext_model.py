@@ -3,10 +3,108 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
 
+from torchvision.models import convnext_base
+
 import kornia
 
 from .base_model import BaseModel
 from . import networks
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, emb_size=256, num_heads=8, dropout=0.1, forward_expansion=4):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(emb_size)
+        self.attn = nn.MultiheadAttention(emb_size, num_heads, dropout=dropout)
+        self.norm2 = nn.LayerNorm(emb_size)
+        self.ff = nn.Sequential(
+            nn.Linear(emb_size, emb_size * forward_expansion),
+            nn.GELU(),
+            nn.Linear(emb_size * forward_expansion, emb_size)
+        )
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        x_ = self.norm1(x)
+        attn_output, _ = self.attn(x_, x_, x_)
+        x = x + self.dropout(attn_output)
+        x_ = self.norm2(x)
+        ff_output = self.ff(x_)
+        x = x + self.dropout(ff_output)
+        return x
+
+class TransConvUNeXtNet(nn.Module):
+    def __init__(self, img_size=256):
+        super().__init__()
+        self.encoder = convnext_base(pretrained=True)
+        # Eingabe 1-Kanal: anpassen
+        self.encoder.features[0][0] = nn.Conv2d(1, self.encoder.features[0][0].out_channels, kernel_size=4, stride=4)
+        # self.encoder.features[0][0] = nn.Conv2d(1, 128, kernel_size=4, stride=4)
+        # Encoder Stage 0 Out Shape: torch.Size([1, 128, 64, 64])
+        # Encoder Stage 1 Out Shape: torch.Size([1, 128, 64, 64])
+        # Encoder Stage 2 Out Shape: torch.Size([1, 256, 32, 32])
+        # Encoder Stage 3 Out Shape: torch.Size([1, 256, 32, 32])
+        # Encoder Stage 4 Out Shape: torch.Size([1, 512, 16, 16])
+        # Encoder Stage 5 Out Shape: torch.Size([1, 512, 16, 16])
+        # Encoder Stage 6 Out Shape: torch.Size([1, 1024, 8, 8])
+        # Encoder Stage 7 Out Shape: torch.Size([1, 1024, 8, 8])
+        
+        # latent space
+        # output channels: 1024 (in letzter Stufe)
+        emb_size = 1024
+        self.transformer = TransformerBlock(emb_size=emb_size, num_heads=8)
+        
+        # Decoder: 10x Upsampling mit ConvTranspose2d
+        self.decoder = nn.ModuleList([    # so that pytorch know that these are modules inside of the list
+                            nn.ConvTranspose2d(emb_size, 1024, kernel_size=1, stride=1),
+                            nn.ConvTranspose2d(1024, 1024, kernel_size=1, stride=1),
+                            nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2),
+                            nn.ConvTranspose2d(512, 512, kernel_size=1, stride=1),
+                            nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2),
+                            nn.ConvTranspose2d(256, 256, kernel_size=1, stride=1),
+                            nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
+                            nn.ConvTranspose2d(128, 128, kernel_size=1, stride=1),
+                            nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
+                            nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2),
+                        ])
+
+        self.conv_head = nn.Conv2d(64, 1, kernel_size=1)
+        
+    def forward(self, x):
+        # Encoder
+        skips = []
+        out = x
+        # Wir müssen alle Stufen extrahieren für Skip Connections
+        # convnext_base.features ist nn.Sequential mit 4 Stages:
+        # print(f"Shape x: {x.shape}")
+        for i, stage in enumerate(self.encoder.features):
+            out = stage(out)
+            # print(f"Encoder Stage {i} Out Shape: {out.shape}")
+            # if len(skips) <= 8: # and i%2 == 0:
+            skips += [out]
+        # out shape: (B, 1024, H/32, W/32)
+        
+        B, C, H, W = out.shape
+        # print(f"Latent Space in shape B={B}, C={C}, H={H}, W={W}")
+        # Transformer: flachlegen zu (Seq, Batch, Emb)
+        x_t = out.flatten(2).permute(2, 0, 1)  # (H*W, B, C)
+        x_t = self.transformer(x_t)
+        # zurück reshapen
+        x_t = x_t.permute(1, 2, 0).view(B, C, H, W)
+        
+        # Decoder mit Upsampling und Skip Connections
+        d = x_t
+        for idx, cur_skip in enumerate(skips[::-1]):
+            d = F.relu(self.decoder[idx](d))
+            # print(f"Decoder Stage {idx} Out Shape: {d.shape}")
+            d = d + cur_skip
+
+        d = F.relu(self.decoder[8](d))
+        d = F.relu(self.decoder[9](d))
+        
+        out = self.conv_head(d)    # (B, num_classes, H*16, W*16)
+        return out
+
 
 class WeightedCombinedLoss(nn.Module):
     def __init__(self, 
@@ -16,6 +114,7 @@ class WeightedCombinedLoss(nn.Module):
                  weight_ssim=5.0,
                  weight_edge_aware=10.0,
                  weight_l1=1.0,
+                 weight_mape=1.0,
                  weight_var=1.0,
                  weight_range=1.0,
                  weight_blur=1.0):
@@ -26,6 +125,7 @@ class WeightedCombinedLoss(nn.Module):
         self.weight_ssim = weight_ssim
         self.weight_edge_aware = weight_edge_aware
         self.weight_l1 = weight_l1
+        self.weight_mape = weight_mape
         self.weight_var = weight_var
         self.weight_range = weight_range
         self.weight_blur = weight_blur
@@ -34,6 +134,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_grad = 0
         self.avg_loss_ssim = 0
         self.avg_loss_l1 = 0
+        self.avg_loss_mape = 0
         self.avg_loss_edge_aware = 0
         self.avg_loss_var = 0
         self.avg_loss_range = 0
@@ -122,6 +223,10 @@ class WeightedCombinedLoss(nn.Module):
         loss = torch.abs(target - pred) * weight_map
         return loss.mean()
 
+    def mape_loss(self, prediction, target, eps=1e-6):
+        not_null_target = torch.clamp(torch.abs(target), min=eps)
+        return torch.mean(torch.abs((prediction - target) / not_null_target))
+
     def variance_loss(self, pred, target):
         pred_var = torch.var(pred)
         target_var = torch.var(target)
@@ -158,6 +263,7 @@ class WeightedCombinedLoss(nn.Module):
         loss_grad = self.gradient_l1_loss(pred, target, weight_map)
         loss_ssim = self.ssim_loss(pred, target, weight_map)
         loss_l1 = self.l1_loss(pred, target, weight_map)
+        loss_mape = self.mape_loss(pred, target)
         loss_edge_aware = self.edge_aware_loss(pred, target, weight_map)
         loss_var = self.variance_loss(pred, target)
         loss_range = self.range_loss(pred, target)
@@ -167,6 +273,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_grad += loss_grad
         self.avg_loss_ssim += loss_ssim
         self.avg_loss_l1 += loss_l1
+        self.avg_loss_mape += loss_mape
         self.avg_loss_edge_aware += loss_edge_aware
         self.avg_loss_var += loss_var
         self.avg_loss_range += loss_range
@@ -179,6 +286,7 @@ class WeightedCombinedLoss(nn.Module):
             self.weight_ssim * loss_ssim +
             self.weight_edge_aware * loss_edge_aware +
             self.weight_l1 * loss_l1 +
+            self.weight_mape * loss_mape +
             self.weight_var * loss_var +
             self.weight_range * loss_range +
             self.weight_blur * loss_blur
@@ -190,6 +298,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_grad = 0
         self.avg_loss_ssim = 0
         self.avg_loss_l1 = 0
+        self.avg_loss_mape = 0
         self.avg_loss_edge_aware = 0
         self.avg_loss_var = 0
         self.avg_loss_range = 0
@@ -201,6 +310,7 @@ class WeightedCombinedLoss(nn.Module):
                 self.avg_loss_grad/self.steps,
                 self.avg_loss_ssim/self.steps,
                 self.avg_loss_l1/self.steps,
+                self.avg_loss_mape/self.steps,
                 self.avg_loss_edge_aware/self.steps,
                 self.avg_loss_var/self.steps,
                 self.avg_loss_range/self.steps,
@@ -208,12 +318,13 @@ class WeightedCombinedLoss(nn.Module):
                )
 
     def get_dict(self, data_idx):
-        loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range = self.get_avg_losses()
+        loss_silog, loss_grad, loss_ssim, loss_l1, loss_mape, loss_edge_aware, loss_var, loss_range = self.get_avg_losses()
         return {
                 f"{data_idx}_loss silog": loss_silog, 
                 f"{data_idx}_loss grad": loss_grad, 
                 f"{data_idx}_loss ssim": loss_ssim,
                 f"{data_idx}_loss L1": loss_l1,
+                f"{data_idx}_loss MAPE": loss_mape,
                 f"{data_idx}_loss edge aware": loss_edge_aware,
                 f"{data_idx}_loss var": loss_var,
                 f"{data_idx}_loss range": loss_range,
@@ -222,6 +333,7 @@ class WeightedCombinedLoss(nn.Module):
                 f"{data_idx}_weight loss grad": self.weight_grad,
                 f"{data_idx}_weight loss ssim": self.weight_ssim,
                 f"{data_idx}_weight loss L1": self.weight_l1,
+                f"{data_idx}_weight loss MAPE": self.weight_mape,
                 f"{data_idx}_weight loss edge aware": self.weight_edge_aware,
                 f"{data_idx}_weight loss var": self.weight_var,
                 f"{data_idx}_weight loss range": self.weight_range,
@@ -248,15 +360,15 @@ def calc_weight_map(target):
 
     return weights_map
 
-class Pix2PixModel(BaseModel):
-    """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
+class TransConvUNextModel(BaseModel):
+    """ This class implements the trans u net model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
     By default, it uses a '--netG unet256' U-Net generator,
     a '--netD basic' discriminator (PatchGAN),
     and a '--gan_mode' vanilla GAN loss (the cross-entropy objective used in the orignal GAN paper).
 
-    pix2pix paper: https://arxiv.org/pdf/1611.07004.pdf
+    Based on: https://github.com/Beckschen/TransUNet 
     """
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -303,8 +415,14 @@ class Pix2PixModel(BaseModel):
         else:  # during test time, only load G
             self.model_names = ['G']
         # define networks (both generator and discriminator)
-        self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                      not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        # self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+        #                               not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.generator = TransConvUNeXtNet(img_size=256)
+        self.netG = networks.init_net(self.generator, 
+                                      opt.init_type, 
+                                      opt.init_gain, 
+                                      self.gpu_ids)
 
         if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
             self.netD = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf, opt.netD,
@@ -332,37 +450,13 @@ class Pix2PixModel(BaseModel):
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
                                             weight_ssim=0.0,
-                                            weight_edge_aware=1000.0,
-                                            weight_l1=0.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_mape=10.0,
                                             weight_var=0.0,
                                             weight_range=0.0,
-                                            weight_blur=10.0
+                                            weight_blur=0.0
                                 )
-
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=1000.0, 
-        #                                     weight_ssim=50.0,
-        #                                     weight_edge_aware=1000.0,
-        #                                     weight_l1=1000.0,
-        #                                     weight_var=10.0,
-        #                                     weight_range=10.0,
-        #                                     weight_blur=100.0
-        #                         )
-
-        # pix2pix_1_0_residual_few_bui_weight_loss_wgangp_l1
-        # self.weighted_loss = WeightedCombinedLoss( 
-        #                                     weight_silog=0.0, 
-        #                                     weight_grad=0.0, 
-        #                                     weight_ssim=0.0,
-        #                                     weight_edge_aware=0.0,
-        #                                     weight_l1=100.0,
-        #                                     weight_var=0.0,
-        #                                     weight_range=0.0,
-        #                                     weight_blur=0.0
-        #                         )
-        # self.lambda_GAN = 1000.0
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
