@@ -180,6 +180,7 @@ class BaseModel(ABC):
             epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
         """
         for name in self.model_names:
+            print(f"Search for attribute: '{name}'")
             if isinstance(name, str):
                 load_filename = '%s_net_%s.pth' % (epoch, name)
                 load_path = os.path.join(self.save_dir, load_filename)

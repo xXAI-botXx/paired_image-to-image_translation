@@ -33,7 +33,7 @@ class TransformerBlock(nn.Module):
         x = x + self.dropout(ff_output)
         return x
 
-class TransConvUNeXtNet(nn.Module):
+class MODELTransConvUNeXtNet(nn.Module):
     def __init__(self, img_size=256):
         super().__init__()
         self.encoder = convnext_base(pretrained=True)
@@ -360,7 +360,7 @@ def calc_weight_map(target):
 
     return weights_map
 
-class TransConvUNextModel(BaseModel):
+class transconvunextmodel(BaseModel):
     """ This class implements the trans u net model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
@@ -418,8 +418,8 @@ class TransConvUNextModel(BaseModel):
         # self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
         #                               not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.generator = TransConvUNeXtNet(img_size=256)
-        self.netG = networks.init_net(self.generator, 
+        model = MODELTransConvUNeXtNet(img_size=256)
+        self.netG = networks.init_net(model, 
                                       opt.init_type, 
                                       opt.init_gain, 
                                       self.gpu_ids)
