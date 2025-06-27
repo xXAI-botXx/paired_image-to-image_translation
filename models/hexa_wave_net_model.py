@@ -1533,7 +1533,7 @@ class HexaWaveNetModel(BaseModel):
             self.model_names = ['G']
         # define networks (both generator and discriminator)
         # FIXME + change me
-        self.opt.model_type = 8
+        self.opt.model_type = 7
         if self.opt.model_type == 1:
             hexa_wave_net = HexaWaveNetGenerator_1(in_channels=opt.input_nc, latent_dim=512, image_size=opt.crop_size)
         elif self.opt.model_type == 2:

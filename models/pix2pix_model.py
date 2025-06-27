@@ -327,17 +327,53 @@ class Pix2PixModel(BaseModel):
         self.forward_passes = 0
         self.current_epoch = 0
 
-        # pix2pix_1_0_residual_few_bui_masked_engineered
+        # pix2pix_1_0_residual_few_bui_masked_weight_loss_2
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=0.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # pix2pix_1_0_residual_few_bui_masked_weight_loss_3
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=10.0, 
+        #                                     weight_grad=10.0, 
+        #                                     weight_ssim=0.0,
+        #                                     weight_edge_aware=10.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=10.0
+        #                         )
+
+        # pix2pix_1_0_residual_few_bui_masked_weight_loss_4
         self.weighted_loss = WeightedCombinedLoss( 
-                                            weight_silog=0.0, 
-                                            weight_grad=0.0, 
+                                            weight_silog=10.0, 
+                                            weight_grad=100.0, 
                                             weight_ssim=0.0,
-                                            weight_edge_aware=1000.0,
-                                            weight_l1=0.0,
-                                            weight_var=0.0,
-                                            weight_range=0.0,
-                                            weight_blur=10.0
+                                            weight_edge_aware=100.0,
+                                            weight_l1=1000.0,
+                                            weight_var=10.0,
+                                            weight_range=10.0,
+                                            weight_blur=0.0
                                 )
+
+        # pix2pix_1_0_residual_few_bui_masked_engineered
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=0.0,
+        #                                     weight_edge_aware=1000.0,
+        #                                     weight_l1=0.0,
+        #                                     weight_var=0.0,
+        #                                     weight_range=0.0,
+        #                                     weight_blur=10.0
+        #                         )
 
         # pix2pix_1_0_residual_few_bui_weight_loss_wgangp
         # self.weighted_loss = WeightedCombinedLoss( 
@@ -394,7 +430,7 @@ class Pix2PixModel(BaseModel):
             self.real_B = input['B' if AtoB else 'A'].to(self.device)
             self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
-        if self.forward_passes == 0:
+        if self.forward_passes < 10:
             print("New Input Images:")
             print(f"\n[Debug] Image (self.realA) stats:\n    - min: {self.real_A.min().item():.2f}\n    - max: {self.real_A.max().item():.2f}\n    - mean: {self.real_A.mean().item():.2f}\n    - shape: {self.real_A.shape}")
             print(f"\n[Debug] Image (self.real_B) stats:\n    - min: {self.real_B.min().item():.2f}\n    - max: {self.real_B.max().item():.2f}\n    - mean: {self.real_B.mean().item():.2f}\n    - shape: {self.real_B.shape}")

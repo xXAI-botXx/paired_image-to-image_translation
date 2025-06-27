@@ -64,6 +64,8 @@ if __name__ == '__main__':
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
 
+    print(f"Dataset: {opt.dataset_mode}")
+
     # initialize logger
     if opt.use_wandb:
         wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
