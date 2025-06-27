@@ -274,14 +274,14 @@ Also see:
 
 Here I provide results evaluated and trained on the [physgen dataset](https://github.com/physicsgen/physicsgen):
 
-| Model | MAE | MAPE | LoS MAE | NLoS MAE | LoS wMAPE | NLoS wMAPE |
-| --- | --- | --- | --- | --- | --- | --- |
-| Hexa Wave Net 1 | 37.01 | 180.70 | 37.01 | 11.84 | 180.70 | 31.07 |
-| Hexa Wave Net 2 | 37.58 | 183.57 | 37.58 | 16.41 | 183.58 | 42.98 |
-| Hexa Wave Net 3 | **1.84** | 44.01 | **1.84** | 6.03 | 44.01 | 15.70 |
-| Hexa Wave Net 7 | 2.60 | **18.06** | 2.60 | **3.25** | 18.06 | **8.53** |
-| Hexa Wave Net 8 | 2.90 | 41.16 | 2.90 | 16.69 | 41.16 | 43.58 |
-| Pix2Pix (from PhysGen) | - | - | 2.14 | 4.79 | **11.30** | 30.67 |
+| Model | LoS MAE | NLoS MAE | LoS wMAPE | NLoS wMAPE |
+| --- | --- | --- | --- | --- |
+| Hexa Wave Net 1 | 41.99 | 50.97 | 114.70 | 161.61 |
+| Hexa Wave Net 2 | 30.96 | 48.05 | 86.91 | 154.68 |
+| Hexa Wave Net 3 | 3.10 | 4.96 | 22.65 | 102.90 |
+| Hexa Wave Net 7 | 3.61 | 7.45 | 13.32 | 35.48 |
+| Hexa Wave Net 8 | 4.18 | 10.71 | 21.25 | 106.79 |
+| Pix2Pix (from PhysGen) | **2.14** | **4.79** | **11.30** | **30.67** |
 
 -> All Models are trained 64 Epochs on the Physgen train dataset on the most difficult reflection variation.
 
