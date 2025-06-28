@@ -151,6 +151,21 @@ class WeightedCombinedLoss(nn.Module):
 
         return F.l1_loss(pred_lap, target_lap)
 
+    def blur_loss(self, pred, target):
+        laplacian_kernel = torch.tensor([[[[0, 1, 0],
+                                           [1, -4, 1],
+                                           [0, 1, 0]]]], dtype=pred.dtype, device=pred.device)
+
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        if target.ndim == 3:
+            target = target.unsqueeze(1)
+
+        pred_lap = F.conv2d(pred, laplacian_kernel, padding=1)
+        target_lap = F.conv2d(target, laplacian_kernel, padding=1)
+
+        return F.l1_loss(pred_lap, target_lap)
+
     def forward(self, pred, target, weight_map=None):
         if type(weight_map) == type(None):
             weight_map = calc_weight_map(target)
@@ -208,7 +223,7 @@ class WeightedCombinedLoss(nn.Module):
                )
 
     def get_dict(self, data_idx):
-        loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range = self.get_avg_losses()
+        loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range, loss_blur = self.get_avg_losses()
         return {
                 f"{data_idx}_loss silog": loss_silog, 
                 f"{data_idx}_loss grad": loss_grad, 
@@ -351,15 +366,207 @@ class Pix2PixModel(BaseModel):
         #                                     weight_blur=10.0
         #                         )
 
-        # pix2pix_1_0_residual_few_bui_masked_weight_loss_4
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_4
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=10.0, 
+        #                                     weight_grad=100.0, 
+        #                                     weight_ssim=0.0,
+        #                                     weight_edge_aware=100.0,
+        #                                     weight_l1=1000.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_5
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=10.0, 
+        #                                     weight_ssim=5.0,
+        #                                     weight_edge_aware=10.0,
+        #                                     weight_l1=1000.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_6
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=1.0, 
+        #                                     weight_grad=1.0, 
+        #                                     weight_ssim=1.0,
+        #                                     weight_edge_aware=1.0,
+        #                                     weight_l1=1.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=1.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_7
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=1000.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_8
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=10.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=10.0,
+        #                                     weight_l1=10.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # pix2pix_1_0_residual_few_bui_masked_weight_loss_9
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=10.0, 
+        #                                     weight_grad=10.0, 
+        #                                     weight_ssim=50.0,
+        #                                     weight_edge_aware=10.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_10 -> good
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=100.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=100.0,
+        #                                     weight_l1=10.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_11
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=100.0, 
+        #                                     weight_ssim=0.0,
+        #                                     weight_edge_aware=100.0,
+        #                                     weight_l1=10.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_12
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=100.0, 
+        #                                     weight_ssim=0.0,
+        #                                     weight_edge_aware=100.0,
+        #                                     weight_l1=10.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_13 -> good
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=0.0,
+        #                                     weight_range=0.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_14
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=50.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=0.0,
+        #                                     weight_range=0.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_15
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_16
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=10.0
+        #                         )
+        
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_17
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=0.0,
+        #                                     weight_range=0.0,
+        #                                     weight_blur=10.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_18
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=10.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=0.0,
+        #                                     weight_range=0.0,
+        #                                     weight_blur=10.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_19
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=10.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=1.0,
+        #                                     weight_range=1.0,
+        #                                     weight_blur=10.0
+        #                         )
+
+        # pix2pix_1_0_residual_few_bui_masked_weight_loss_20 - 23
         self.weighted_loss = WeightedCombinedLoss( 
-                                            weight_silog=10.0, 
-                                            weight_grad=100.0, 
-                                            weight_ssim=0.0,
-                                            weight_edge_aware=100.0,
-                                            weight_l1=1000.0,
-                                            weight_var=10.0,
-                                            weight_range=10.0,
+                                            weight_silog=0.0, 
+                                            weight_grad=0.0, 
+                                            weight_ssim=100.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_var=0.0,
+                                            weight_range=0.0,
                                             weight_blur=0.0
                                 )
 
