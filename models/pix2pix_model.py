@@ -558,16 +558,52 @@ class Pix2PixModel(BaseModel):
         #                                     weight_blur=10.0
         #                         )
 
-        # pix2pix_1_0_residual_few_bui_masked_weight_loss_20 - 23
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_20 - 24
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=0.0,
+        #                                     weight_range=0.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_25
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=0.0
+        #                         )
+
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_26
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=10.0
+        #                         )
+
+        # pix2pix_1_0_residual_few_bui_masked_weight_loss_27
         self.weighted_loss = WeightedCombinedLoss( 
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
                                             weight_ssim=100.0,
                                             weight_edge_aware=0.0,
-                                            weight_l1=100.0,
-                                            weight_var=0.0,
-                                            weight_range=0.0,
-                                            weight_blur=0.0
+                                            weight_l1=1.0,
+                                            weight_var=1.0,
+                                            weight_range=1.0,
+                                            weight_blur=1.0
                                 )
 
         # pix2pix_1_0_residual_few_bui_masked_engineered
