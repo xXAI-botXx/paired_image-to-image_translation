@@ -140,6 +140,10 @@ class Visualizer():
                 for label, image in visuals.items():
                     image_numpy = util.tensor2im(image)
                     label_html_row += '<td>%s</td>' % label
+                    
+                    if image_numpy.shape[0] > 1:
+                        image_numpy = image_numpy[0]
+
                     images.append(image_numpy.transpose([2, 0, 1]))
                     idx += 1
                     if idx % ncols == 0:

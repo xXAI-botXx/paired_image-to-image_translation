@@ -227,6 +227,29 @@ nohup python train.py --dataroot ~/data/does_not_matter  --name transunet_1_0 --
 nohup python train.py --dataroot ~/data/does_not_matter  --name transconvunext_1_0 --model transconvunext --n_epochs 100 --lr 0.0002 --beta1 0.5 --batch_size 12 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size inf --use_wandb --wandb_project_name Master-PhysGen > ./transconvunext_1_0.log 2>&1 &
 ```
 
+Physgen with partwised simulated reflexions:
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_36_channels --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 18 --lr_policy linear --dataset_mode physgen --input_nc 37 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 --reflexions_as_channels > ./logs/pix2pix_ips_36_channels.log 2>&1 &
+```
+
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_36_one_channel --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 18 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_ips_36_one_channel.log 2>&1 &
+```
+
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_channels --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 37 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 --reflexions_as_channels > ./logs/pix2pix_cfo_ips_36_channels.log 2>&1 &
+```
+
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one_channel --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_cfo_ips_36_one_channel.log 2>&1 &
+```
+
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`
 
