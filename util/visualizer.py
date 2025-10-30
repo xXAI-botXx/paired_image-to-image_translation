@@ -141,8 +141,10 @@ class Visualizer():
                     image_numpy = util.tensor2im(image)
                     label_html_row += '<td>%s</td>' % label
                     
-                    if image_numpy.shape[0] > 1:
-                        image_numpy = image_numpy[0]
+                    # print("SHAPE", image_numpy.shape)
+                    if image_numpy.shape[2] > 1:
+                        # image_numpy = np.expand_dims(image_numpy[0], axis=2)  # np.unsqueeze(image_numpy[0], axis=0)
+                        image_numpy = np.mean(image_numpy, axis=2, keepdims=True)
 
                     images.append(image_numpy.transpose([2, 0, 1]))
                     idx += 1
@@ -183,6 +185,8 @@ class Visualizer():
             table_row = [epoch]
             ims_dict = {}
             for label, image in visuals.items():
+                # print("SHAPE", image.shape)
+                image = image.mean(dim=1, keepdim=True)
                 image_numpy = util.tensor2im(image)
                 wandb_image = wandb.Image(image_numpy)
                 table_row.append(wandb_image)
@@ -197,6 +201,7 @@ class Visualizer():
             self.saved = True
             # save images to the disk
             for label, image in visuals.items():
+                image = image.mean(dim=1, keepdim=True)
                 image_numpy = util.tensor2im(image)
                 img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
                 util.save_image(image_numpy, img_path)
@@ -208,6 +213,7 @@ class Visualizer():
                 ims, txts, links = [], [], []
 
                 for label, image_numpy in visuals.items():
+                    image = image.mean(dim=1, keepdim=True)
                     image_numpy = util.tensor2im(image)
                     img_path = 'epoch%.3d_%s.png' % (n, label)
                     ims.append(img_path)

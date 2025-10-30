@@ -122,14 +122,20 @@ class Pix2PixCFOModel(BaseModel):
                             'fusion']
 
         if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
-            self.train_dataset_base = PhysGenDataset(mode='train', variation="sound_baseline", input_type="osm", output_type="standard")
-            self.val_dataset_base = PhysGenDataset(mode='validation', variation="sound_baseline", input_type="osm", output_type="standard")
+            self.train_dataset_base = PhysGenDataset(mode='train', variation="sound_baseline", input_type="osm", output_type="standard",
+                                                     reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+            self.val_dataset_base = PhysGenDataset(mode='validation', variation="sound_baseline", input_type="osm", output_type="standard",
+                                                   reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
 
-            self.train_dataset_complex = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="complex_only")
-            self.val_dataset_complex = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="complex_only")
+            self.train_dataset_complex = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="complex_only",
+                                                        reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+            self.val_dataset_complex = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="complex_only",
+                                                      reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
 
-            self.train_dataset_fusion = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="standard")
-            self.val_dataset_fusion = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="standard")
+            self.train_dataset_fusion = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="standard",
+                                                       reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+            self.val_dataset_fusion = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="standard",
+                                                     reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
             self.datasets = [(self.train_dataset_base, self.val_dataset_base), (self.train_dataset_complex, self.val_dataset_complex), (self.train_dataset_fusion, self.val_dataset_fusion)]
 
             self.epochs = opt.n_epochs

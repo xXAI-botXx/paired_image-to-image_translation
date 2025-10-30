@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -570,17 +571,17 @@ class Pix2PixModel(BaseModel):
         #                                     weight_blur=0.0
         #                         )
 
-        # pix2pix_1_0_residual_few_bui_masked_weight_loss_25
-        self.weighted_loss = WeightedCombinedLoss( 
-                                            weight_silog=0.0, 
-                                            weight_grad=0.0, 
-                                            weight_ssim=100.0,
-                                            weight_edge_aware=0.0,
-                                            weight_l1=100.0,
-                                            weight_var=10.0,
-                                            weight_range=10.0,
-                                            weight_blur=0.0
-                                )
+        # # pix2pix_1_0_residual_few_bui_masked_weight_loss_25
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=100.0,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=100.0,
+        #                                     weight_var=10.0,
+        #                                     weight_range=10.0,
+        #                                     weight_blur=0.0
+        #                         )
 
         # # pix2pix_1_0_residual_few_bui_masked_weight_loss_26
         # self.weighted_loss = WeightedCombinedLoss( 
@@ -642,6 +643,18 @@ class Pix2PixModel(BaseModel):
         #                                     weight_blur=0.0
         #                         )
         # self.lambda_GAN = 1000.0
+
+        # pix2pix reflexion channels
+        self.weighted_loss = WeightedCombinedLoss( 
+                                            weight_silog=1.0, 
+                                            weight_grad=50.0, 
+                                            weight_ssim=100.0,
+                                            weight_edge_aware=50.0,
+                                            weight_l1=10.0,
+                                            weight_var=0.0,
+                                            weight_range=0.0,
+                                            weight_blur=0.0
+                                )
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -765,15 +778,15 @@ class Pix2PixModel(BaseModel):
                 self.loss_G_L1 = masked_l1.sum() / num_masked
             else:
                 if self.train_mask_area:
-                    self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=mask) 
+                    self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))  # mask) 
                     # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
                 else:
                     inverted_mask = 1 - mask
                     self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=inverted_mask) 
         else:
             # No masking
-            # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
-            self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
+            self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))
+            # self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1

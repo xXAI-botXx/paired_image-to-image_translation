@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -134,15 +135,16 @@ class WeightedCombinedLoss(nn.Module):
         
         return min_loss + max_loss
 
-    def forward(self, pred, target):
-        weight_map = calc_weight_map(target)
+    def forward(self, pred, target, weight_map=None):
+        if type(weight_map) == type(None):
+            weight_map = calc_weight_map(target)
         loss_silog = self.silog_loss(pred, target, weight_map)
         loss_grad = self.gradient_l1_loss(pred, target, weight_map)
         loss_ssim = self.ssim_loss(pred, target, weight_map)
         loss_l1 = self.l1_loss(pred, target, weight_map)
         loss_edge_aware = self.edge_aware_loss(pred, target, weight_map)
-        loss_var = self.variance_loss(pred, target)
-        loss_range = self.range_loss(pred, target)
+        loss_var = 0.0 if self.weight_var == 0.0 else self.variance_loss(pred, target)
+        loss_range = 0.0 if self.weight_range == 0.0 else self.range_loss(pred, target)
 
         self.avg_loss_silog += loss_silog
         self.avg_loss_grad += loss_grad
@@ -301,14 +303,26 @@ class Pix2PixCFOSubModel(BaseModel):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
-        self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
-                                                    weight_silog=0.5, 
-                                                    weight_grad=10.0, 
-                                                    weight_ssim=5.0,
-                                                    weight_edge_aware=10.0,
-                                                    weight_l1=100.0,
-                                                    weight_var=10.0,
-                                                    weight_range=100.0)
+        """
+        First Reflexion Channel Experiments:
+        self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                    weight_silog=1.0, 
+                                                    weight_grad=50.0, 
+                                                    weight_ssim=100.0,
+                                                    weight_edge_aware=50.0,
+                                                    weight_l1=10.0,
+                                                    weight_var=0.0,
+                                                    weight_range=0.0)
+        """
+
+        self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                    weight_silog=1.0, 
+                                                    weight_grad=50.0, 
+                                                    weight_ssim=100.0,
+                                                    weight_edge_aware=50.0,
+                                                    weight_l1=10.0,
+                                                    weight_var=0.0,
+                                                    weight_range=0.0)
         
         self.lambda_GAN = 1.0
         self.use_cfg_loss = opt.use_cfg_loss
@@ -447,6 +461,7 @@ class Pix2PixCFOSubModel(BaseModel):
         """Calculate GAN and L1 loss for the generator"""
         input_ = adjust_shape(input_, target_)
         pred_ = adjust_shape(pred_, target_)
+        target_ = target_
 
         if input_.dim() == 3:
             input_ = input_.unsqueeze(0)
@@ -465,12 +480,12 @@ class Pix2PixCFOSubModel(BaseModel):
             self.loss_G_GAN = self.criterionGAN(pred_fake, True)
         
         # Second, G(A) = B
-        # if self.use_cfg_loss:
-        #     self.loss_second = self.combined_loss(pred_, target_)
-        # else:
-        #     self.loss_second = self.criterionL1(pred_, target_)
+        if self.use_cfg_loss:
+            self.loss_second = self.combined_loss(pred_, target_, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0)) # (self.real_B > 0).astype(np.uint8) * 255)
+        else:
+            self.loss_second = self.criterionL1(pred_, target_)
 
-        self.loss_second = self.criterionL1(pred_, target_)
+        # self.loss_second = self.criterionL1(pred_, target_)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_second * self.opt.lambda_second

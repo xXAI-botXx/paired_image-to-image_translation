@@ -67,7 +67,8 @@ def resize_tensor_to_divisible_by_14(tensor: torch.Tensor) -> torch.Tensor:
 
 class PhysGenDataset(Dataset):
 
-    def __init__(self, variation="sound_baseline", mode="train", input_type="osm", output_type="standard", reflexion_channels=False):
+    def __init__(self, variation="sound_baseline", mode="train", input_type="osm", output_type="standard", 
+                 reflexion_channels=False, reflexion_steps=36, reflexions_as_channels=False):
         """
         Loads PhysGen Dataset.
 
@@ -97,8 +98,8 @@ class PhysGenDataset(Dataset):
         ])
         print(f"PhysGen ({variation}) Dataset for {mode} got created")
         self.reflexion_channels = reflexion_channels
-        self.reflexion_steps = opt.reflexion_steps
-        self.reflexions_as_channels = opt.reflexions_as_channels
+        self.reflexion_steps = reflexion_steps
+        self.reflexions_as_channels = reflexions_as_channels
 
     def __len__(self):
         return len(self.dataset)
@@ -141,6 +142,7 @@ class PhysGenDataset(Dataset):
 
         # reflexions
         if self.reflexion_channels:
+            height, width = np.squeeze(input_img.cpu().numpy(), axis=0).shape
             rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
                                                 img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
                                                 directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
@@ -156,7 +158,7 @@ class PhysGenDataset(Dataset):
                                                 img_background=None,	
                                                 ray_value=[50, 100, 255],	
                                                 ray_thickness=1,	
-                                                img_shape=(512, 512),
+                                                img_shape=(height, width),
                                                 should_scale_rays_to_image=True,
                                                 show_only_reflections=True)
             # (256, 256)
