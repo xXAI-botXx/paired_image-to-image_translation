@@ -95,7 +95,10 @@ if __name__ == '__main__':
             # print(visuals)
             os.makedirs("/".join(img_path[0].split("/")[:-1]), exist_ok=True)
             # print(data[0 if opt.direction == 'AtoB' else 1].detach().cpu().shape)
-            save_image(data[0 if opt.direction == 'AtoB' else 1].detach().cpu().unsqueeze(0), img_path[0])
+            cur_data = data[0 if opt.direction == 'AtoB' else 1]
+            if cur_data.shape[-1] > 3:
+                cur_data = cur_data[:, :, 0]
+            save_image(cur_data.detach().cpu().unsqueeze(0), img_path[0])
 
         # print(visuals[list(visuals.keys())[0]].shape)
         if i % 5 == 0:  # save images to an HTML file

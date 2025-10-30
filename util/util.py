@@ -60,14 +60,19 @@ def save_image(image_numpy, image_path, aspect_ratio=1.0):
         image_numpy (numpy array) -- input numpy array
         image_path (str)          -- the path of the image
     """
+    if image_numpy.shape[-1] > 3 and len(image_numpy.shape) == 3:
+        image_numpy = image_numpy[:, :, 0]
+    elif image_numpy.shape[-1] > 3 and len(image_numpy.shape) == 2:
+        image_numpy = image_numpy[:, 0]
 
     image_pil = Image.fromarray(image_numpy)
-    h, w, _ = image_numpy.shape
+    h, w = image_numpy.shape[:2]
 
     if aspect_ratio > 1.0:
         image_pil = image_pil.resize((h, int(w * aspect_ratio)), Image.BICUBIC)
     if aspect_ratio < 1.0:
         image_pil = image_pil.resize((int(h / aspect_ratio), w), Image.BICUBIC)
+
     image_pil.save(image_path)
 
 
