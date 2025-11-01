@@ -9,7 +9,10 @@ See:
 from data.base_dataset import BaseDataset, get_transform
 
 import os
+import shutil
+
 from PIL import Image
+import cv2
 
 # from datasets import load_dataset
 import numpy as np
@@ -19,8 +22,10 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-import img_phy_sim as ips
+from datasets import load_dataset
 
+# import prime_printer as prime 
+import img_phy_sim as ips
 
 class PhysGenDataset(BaseDataset):
     @staticmethod
@@ -34,7 +39,7 @@ class PhysGenDataset(BaseDataset):
         Returns:
             the modified parser.
         """
-        parser.add_argument('--is_train', action='store_true', help='Whether it is train or test.')
+        # parser.add_argument('--is_train', action='store_true', help='Whether it is train or test.')
         parser.add_argument('--variation', type=str, default="sound_baseline", help='Decides which dataset to load: sound_baseline, sound_reflection, sound_diffraction, sound_combined.')
         parser.add_argument('--reflexion_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         parser.add_argument('--reflexion_steps', type=int, default=36, help='Amount of reflexion beams.')
@@ -43,7 +48,7 @@ class PhysGenDataset(BaseDataset):
         parser.set_defaults(max_dataset_size=float("inf"))  # specify dataset-specific default values
         return parser
 
-    def __init__(self, opt, dataset):
+    def __init__(self, opt, dataset, mode):
         """Initialize this dataset class.
 
         Parameters:
@@ -70,7 +75,8 @@ class PhysGenDataset(BaseDataset):
         self.transform = transforms.Compose([
             transforms.ToTensor(),  # Converts [0,255] PIL image to [0,1] FloatTensor
         ])
-        print(f"PhysGen Dataset for {'train' if opt.is_train else 'test'} got created")
+        print(f"PhysGen Dataset for {mode} got created")
+        self.mode = mode
         self.reflexion_channels = opt.reflexion_channels
         self.reflexion_steps = opt.reflexion_steps
         self.reflexions_as_channels = opt.reflexions_as_channels
@@ -91,15 +97,22 @@ class PhysGenDataset(BaseDataset):
 
         # add raytracing
         if self.reflexion_channels:
-            rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
-                                                img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
-                                                directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
-                                                wall_values=[0],	
-                                                wall_thickness=0,	
-                                                img_border_also_collide=False,	
-                                                reflexion_order=3,	
-                                                should_scale_rays=True,	
-                                                should_scale_img=False)
+            # first try to find the rays
+            ray_path = os.path.join("./rays", self.mode, str(self.reflexion_steps), f"rays_[{str(idx)}].txt")
+            if os.path.exists(ray_path):
+                rays = ips.ray_tracing.open(path=ray_path)
+            else:
+                # FIXME
+                raise ValueError(f"Should load the rays, it seems like it did not find the path. Current folder items: {os.listdir('.')}")
+                rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
+                                                    img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
+                                                    directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
+                                                    wall_values=[0],	
+                                                    wall_thickness=0,	
+                                                    img_border_also_collide=False,	
+                                                    reflexion_order=3,	
+                                                    should_scale_rays=True,	
+                                                    should_scale_img=False)
             ray_img = ips.ray_tracing.draw_rays(rays,	
                                                 detail_draw=False,	
                                                 output_format='channels' if self.reflexions_as_channels else 'single_image',	
@@ -122,7 +135,6 @@ class PhysGenDataset(BaseDataset):
                 raise ValueError(f"Ray image shape {ray_img.shape} does not match input image shape {input_img.shape}.")
 
         return input_img, target_img, idx
-
 
 
 

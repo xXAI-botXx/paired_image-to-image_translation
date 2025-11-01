@@ -86,6 +86,9 @@ class PhysGenDataset(Dataset):
         # get data
         self.dataset = load_dataset("mspitzna/physicsgen", name=variation, trust_remote_code=True)
         self.dataset = self.dataset[mode]
+
+        self.mode = mode
+        # self.is_train = mode == "train"
         
         self.input_type = input_type
         self.output_type = output_type
@@ -143,15 +146,19 @@ class PhysGenDataset(Dataset):
         # reflexions
         if self.reflexion_channels:
             height, width = np.squeeze(input_img.cpu().numpy(), axis=0).shape
-            rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
-                                                img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
-                                                directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
-                                                wall_values=[0],	
-                                                wall_thickness=0,	
-                                                img_border_also_collide=False,	
-                                                reflexion_order=3,	
-                                                should_scale_rays=True,	
-                                                should_scale_img=False)
+            ray_path = os.path.join("./rays", self.mode, str(self.reflexion_steps), f"rays_[{str(idx)}].txt")
+            if os.path.exists(ray_path):
+                rays = ips.ray_tracing.open(path=ray_path)
+            else:
+                rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
+                                                    img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
+                                                    directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
+                                                    wall_values=[0],	
+                                                    wall_thickness=0,	
+                                                    img_border_also_collide=False,	
+                                                    reflexion_order=3,	
+                                                    should_scale_rays=True,	
+                                                    should_scale_img=False)
             ray_img = ips.ray_tracing.draw_rays(rays,	
                                                 detail_draw=False,	
                                                 output_format='channels' if self.reflexions_as_channels else 'single_image',	
