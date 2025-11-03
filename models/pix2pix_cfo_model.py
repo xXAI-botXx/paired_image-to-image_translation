@@ -325,7 +325,7 @@ class Pix2PixCFOModel(BaseModel):
 def to_device(dataset):
     # Input: [Tensor(), Tensor(), int]
     if len(dataset) != 3:
-        raise ValurError("Expected dataset to be a list of 3 values")
+        raise ValueError("Expected dataset to be a list of 3 values")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return [dataset[0].to(device), dataset[1].to(device), dataset[2]]
 

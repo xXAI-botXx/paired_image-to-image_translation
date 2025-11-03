@@ -764,29 +764,30 @@ class Pix2PixModel(BaseModel):
         
         # Second, G(A) = B
         # L1 loss masked
-        if self.masked:
-            # Compute pixel-wise absolute difference
-            l1_diff = torch.abs(self.fake_B - self.real_B)
+        # if self.masked:
+        #     # Compute pixel-wise absolute difference
+        #     l1_diff = torch.abs(self.fake_B - self.real_B)
 
-            # Create mask where real_B > 0
-            mask = (self.real_B > 0).float() # (self.real_B > 0).astype(np.uint8) * 255
+        #     # Create mask where real_B > 0
+        #     mask = (self.real_B > 0).float() # (self.real_B > 0).astype(np.uint8) * 255
 
-            # Apply mask and normalize
-            if False:
-                masked_l1 = l1_diff * mask
-                num_masked = torch.clamp(mask.sum(), min=1.0)  # prevent division by zero
-                self.loss_G_L1 = masked_l1.sum() / num_masked
-            else:
-                if self.train_mask_area:
-                    self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))  # mask) 
-                    # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
-                else:
-                    inverted_mask = 1 - mask
-                    self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=inverted_mask) 
-        else:
-            # No masking
-            self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))
-            # self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
+        #     # Apply mask and normalize
+        #     if False:
+        #         masked_l1 = l1_diff * mask
+        #         num_masked = torch.clamp(mask.sum(), min=1.0)  # prevent division by zero
+        #         self.loss_G_L1 = masked_l1.sum() / num_masked
+        #     else:
+        #         if self.train_mask_area:
+        #             self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))  # mask) 
+        #             # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
+        #         else:
+        #             inverted_mask = 1 - mask
+        #             self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=inverted_mask) 
+        # else:
+        #     # No masking
+        #     self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))
+        
+        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1

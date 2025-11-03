@@ -59,7 +59,7 @@ if __name__ == '__main__':
     else:
         loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
         print(f"Physgen Variation: {opt.variation}")
-        dataset = PhysGenDataset(dataset=loaded_dataset["test"], opt=opt)
+        dataset = PhysGenDataset(dataset=loaded_dataset["test"], opt=opt, mode="test")
     
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
