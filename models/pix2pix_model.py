@@ -264,6 +264,43 @@ def calc_weight_map(target):
 
     return weights_map
 
+
+
+def masked_l1_loss(prediction, target, mask):
+    diff = torch.abs(prediction - target) * mask
+    return diff.sum() / (mask.sum() + 1e-8)
+
+
+
+def shifted_mask(batch_size, height, width, device, region_size=(16, 16), epoch=0, shift_every_n_epochs=10, max_epoch=80):
+    # check if max is reached -> 20% of max epoch
+    limit_usage_epoch = int(max_epoch * 0.2)
+    if epoch >= limit_usage_epoch:
+        return torch.ones((batch_size, 1, height, width), device=device) 
+
+    # init with full mask
+    mask = torch.zeros((batch_size, 1, height, width), device=device)
+
+    # amount of regions per row and column
+    n_rows = height // region_size[0]
+    n_cols = width // region_size[1]
+    total_regions = n_rows * n_cols
+
+    # get region which should be active
+    shift_index = (epoch // shift_every_n_epochs) % total_regions
+    row_idx = shift_index // n_cols
+    col_idx = shift_index % n_cols
+
+    # scale to the real pixel size
+    row_start = row_idx * region_size[0]
+    col_start = col_idx * region_size[1]
+
+    # masked regions set to 1
+    mask[:, :, row_start:row_start+region_size[0],
+               col_start:col_start+region_size[1]] = 1
+
+    return mask
+
 class Pix2PixModel(BaseModel):
     """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
 
@@ -296,6 +333,7 @@ class Pix2PixModel(BaseModel):
             parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--masked', action='store_true', help='Should mask with the target and threshold at 0')
+            parser.add_argument('--weighted_loss', action='store_true', help='Should use weighted loss or standard l1-loss.')
 
         return parser
 
@@ -308,7 +346,9 @@ class Pix2PixModel(BaseModel):
         BaseModel.__init__(self, opt)
         if self.isTrain:
             self.masked = opt.masked
+            self.weighted_loss = opt.weighted_loss
             self.train_mask_area = True
+
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
@@ -337,6 +377,8 @@ class Pix2PixModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
 
             self.epochs = opt.n_epochs
+            self.mask = shifted_mask(batch_size=opt.batch_size, height=256, width=256, device=self.device, region_size=(16, 16), epoch=0, shift_every_n_epochs=10)
+            self.batch_size = opt.batch_size
         
         self.lambda_GAN = 1.0
         self.epochs_with_gan = 0
@@ -699,6 +741,11 @@ class Pix2PixModel(BaseModel):
         new_epoch = self.current_epoch != epoch
         self.current_epoch = epoch
 
+        if self.masked:
+            self.mask = shifted_mask(batch_size=self.batch_size, height=256, width=256, device=self.device, 
+                                     region_size=(16, 16), epoch=self.current_epoch, shift_every_n_epochs=10,
+                                     max_epoch=self.epochs)
+
         # update Loss Weighting
         # if new_epoch:
         #     self.lambda_GAN = min(epoch * 10.0, 200)
@@ -787,7 +834,19 @@ class Pix2PixModel(BaseModel):
         #     # No masking
         #     self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))
         
-        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
+
+        # calc second loss with masking and optional weighted loss
+        if self.masked:
+            if self.weighted_loss:
+                self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=self.mask)
+            else:
+                # self.loss_G_L1 = torch.mean(torch.abs(self.real_B - self.fake_B) * self.mask) 
+                self.loss_G_L1 = masked_l1_loss(self.fake_B, self.real_B, self.mask)
+        else:
+            if self.weighted_loss:
+                self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))
+            else:
+                self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1
