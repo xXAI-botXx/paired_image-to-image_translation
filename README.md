@@ -234,7 +234,7 @@ All with the same settings:
 - Epochs = 50
 - Batchsze 18 (if possible)
 - Lr = 1e-4
-- Combined Loss:
+- NO Combined Loss -> just l1 loss, but when active then:
   - SSIM = 10
   - GRAD = 50
   - Edge Aware = 50
@@ -243,35 +243,8 @@ All with the same settings:
 
 ```bash
 conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_36_channels --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 18 --lr_policy linear --dataset_mode physgen --input_nc 37 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 --reflexions_as_channels > ./logs/pix2pix_ips_36_channels.log 2>&1 &
-```
-
-```bash
-conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_36_one_channel --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 18 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_ips_36_one_channel.log 2>&1 &
-```
-
-```bash
-conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 18 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 > ./logs/pix2pix_ips_360_one_channel.log 2>&1 &
-```
-
-```bash
-conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_channels --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 37 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen --use_cfg_loss --reflexion_channels --reflexion_steps 36 --reflexions_as_channels > ./logs/pix2pix_cfo_ips_36_channels.log 2>&1 &
-```
-
-```bash
-conda activate gan
-cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one_channel --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_cfo_ips_36_one_channel.log 2>&1 &
-```
-
-```bash
-conda activate gan
-cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_360_one_channel --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 > ./logs/pix2pix_cfo_ips_360_one_channel.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_losses --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss --use_wandb --wandb_project_name Master-PhysGe > ./logs/pix2pix_cfo_adjusted_losses.log 2>&1 &
 ```
 
 And also with just the l1 loss:
@@ -283,6 +256,17 @@ nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_36_ch
 ```bash
 conda activate gan
 nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_36_one_channel_l1 --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_ips_36_one_channel_l1.log 2>&1 &
+```
+
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel_l1 --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 > ./logs/pix2pix_ips_360_one_channel_l1.log 2>&1 &
+```
+
+Use masking:
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_0_1_masked --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked --use_wandb --wandb_project_name Master-PhysGen > ./logs/pix2pix_0_1_masked.log 2>&1 &
 ```
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`

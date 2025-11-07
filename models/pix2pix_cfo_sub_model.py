@@ -262,7 +262,7 @@ class Pix2PixCFOSubModel(BaseModel):
 
         return parser
 
-    def __init__(self, opt):
+    def __init__(self, opt, is_base_model):
         """Initialize the pix2pix class.
 
         Parameters:
@@ -315,14 +315,24 @@ class Pix2PixCFOSubModel(BaseModel):
                                                     weight_range=0.0)
         """
 
-        self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
-                                                    weight_silog=1.0, 
-                                                    weight_grad=50.0, 
-                                                    weight_ssim=100.0,
-                                                    weight_edge_aware=50.0,
-                                                    weight_l1=10.0,
-                                                    weight_var=0.0,
-                                                    weight_range=0.0)
+        if is_base_model:
+            self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                        weight_silog=0.0, 
+                                                        weight_grad=0.0, 
+                                                        weight_ssim=0.0,
+                                                        weight_edge_aware=0.0,
+                                                        weight_l1=1.0,
+                                                        weight_var=0.0,
+                                                        weight_range=0.0)
+        else:
+            self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                        weight_silog=0.5, 
+                                                        weight_grad=50.0, 
+                                                        weight_ssim=100.0,
+                                                        weight_edge_aware=50.0,
+                                                        weight_l1=10.0,
+                                                        weight_var=0.0,
+                                                        weight_range=0.0)
         
         self.lambda_GAN = 1.0
         self.use_cfg_loss = opt.use_cfg_loss

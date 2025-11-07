@@ -88,14 +88,14 @@ class Pix2PixCFOModel(BaseModel):
 
         base_opt = deepcopy(opt)
         base_opt.use_cfg_loss = False
-        self.base_model = Pix2PixCFOSubModel(base_opt)
+        self.base_model = Pix2PixCFOSubModel(base_opt, is_base_model=True)
         self.netbase_model_g = self.base_model.netG
         if self.isTrain:
             self.netbase_model_d = self.base_model.netD
         
         complex_opt = deepcopy(opt)
         complex_opt.use_cfg_loss = True
-        self.complex_model = Pix2PixCFOSubModel(complex_opt)
+        self.complex_model = Pix2PixCFOSubModel(complex_opt, is_base_model=False)
         self.netcomplex_model_g = self.complex_model.netG
         if self.isTrain:
             self.netcomplex_model_d = self.complex_model.netD
@@ -299,19 +299,19 @@ class Pix2PixCFOModel(BaseModel):
             # Basline
             pred_ = self.forward_and_return(model_idx=0)
             self.base_model.optimize_parameters(base_data[0], base_data[1], pred_)
-            print(f"\nBaseline Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
+            # print(f"\nBaseline Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
 
             # Complex
             pred_ = self.forward_and_return(model_idx=1)
             self.complex_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
-            print(f"\nComplex Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
+            # print(f"\nComplex Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
         else:
             # Fusion
             self.fusion_head.optimizer.zero_grad()
             pred_ = self.forward_and_return(model_idx=2)
             self.fusion_head.backward(target_, pred_)
             self.fusion_head.optimizer.step()
-            print(f"\nFusion Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
+            # print(f"\nFusion Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
 
         self.data_idx_train += 1
 
