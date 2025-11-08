@@ -266,7 +266,12 @@ nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_o
 Use masking:
 ```bash
 conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_0_1_masked --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked --use_wandb --wandb_project_name Master-PhysGen > ./logs/pix2pix_0_1_masked.log 2>&1 &
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked --use_wandb --wandb_project_name Master-PhysGen > ./logs/pix2pix_1_0_masked.log 2>&1 &
+```
+
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked_2 --model pix2pix --n_epochs 120 --lr 0.0001 --beta1 0.5 --batch_size 64 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked > ./logs/pix2pix_1_0_masked_2.log 2>&1 &
 ```
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`
