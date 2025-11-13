@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from .base_model import BaseModel
 from . import networks
-from .pix2pix_cfo_sub_model import Pix2PixCFOSubModel
+from .pix2pix_cfo_sub_model import Pix2PixCFOSubModel, scale
 
 
 class FusionHead(nn.Module):
@@ -76,6 +76,7 @@ class Pix2PixCFOModel(BaseModel):
             parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
         parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
+        parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
 
         return parser
 
@@ -262,7 +263,7 @@ class Pix2PixCFOModel(BaseModel):
                     complex_data = (val_complex_inputs, val_complex_targets)
                 else:
                     complex_data = (to_device(val_complex_inputs, self.device), to_device(val_complex_targets, self.device))
-                complex_pred = self.complex_model.forward_and_return(*complex_data)
+                complex_pred = self.complex_model.forward_and_return(*complex_data, should_scale=True)
                 complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
                 if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                     complex_data[0].cpu().detach()
@@ -292,7 +293,7 @@ class Pix2PixCFOModel(BaseModel):
                         complex_data = (train_complex_inputs, train_complex_targets)
                     else:
                         complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
-                    pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
+                    pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1], False)
                     pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
                     if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                         complex_data[0].cpu().detach()
@@ -312,7 +313,7 @@ class Pix2PixCFOModel(BaseModel):
                         complex_data = (train_complex_inputs, train_complex_targets)
                     else:
                         complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
-                    complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
+                    complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1], should_scale=True)
                     complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
                     if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                         complex_data[0].cpu().detach()
@@ -327,7 +328,7 @@ class Pix2PixCFOModel(BaseModel):
 
         else:
             base_pred = self.base_model(self.real_A)
-            complex_pred = self.complex_model(self.real_A)
+            complex_pred = self.complex_model(self.real_A, should_scale=True)
             
             if self.USE_FUSION_MODEL:
                 base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)

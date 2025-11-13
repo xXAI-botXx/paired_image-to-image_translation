@@ -751,6 +751,34 @@ nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one
 nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_6_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 1 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_6_loaded_weights_optimized.log 2>&1 &
 ```
 
+With complex model learning log scaled space:
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e+100, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_7_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --scale_complex_part > ./logs/pix2pix_cfo_weighted_adjusted_losses_7_log_space.log 2>&1 &
+```
 
 
 **Physgen with partwised simulated reflexions:**<br>

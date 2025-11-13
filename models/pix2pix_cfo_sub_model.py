@@ -354,6 +354,7 @@ class Pix2PixCFOSubModel(BaseModel):
             parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
         parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
+        parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
 
         return parser
 
@@ -427,16 +428,18 @@ class Pix2PixCFOSubModel(BaseModel):
                                                         weight_var=0.0,
                                                         weight_range=0.0,
                                                         weight_blur=0.0)
+            self.scale_complex_part = False
         else:
             self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
                                                         weight_silog=0.0, 
                                                         weight_grad=0.0, 
-                                                        weight_ssim=1000.0,
+                                                        weight_ssim=10.0,
                                                         weight_edge_aware=0.0,
-                                                        weight_l1=1000.0,
-                                                        weight_var=10.0,
-                                                        weight_range=10.0,
-                                                        weight_blur=10.0)
+                                                        weight_l1=100.0,
+                                                        weight_var=0.0,
+                                                        weight_range=0.0,
+                                                        weight_blur=0.0)
+            self.scale_complex_part = opt.scale_complex_part
         self.is_base_model = is_base_model
         
         self.lambda_GAN = 1.0
@@ -516,7 +519,7 @@ class Pix2PixCFOSubModel(BaseModel):
         if self.use_cfg_loss:
             self.combined_loss.clean()
 
-    def __call__(self, input_):
+    def __call__(self, input_, should_scale):
         # print(f"Input type: {type(input_)}, Input Shape: {input_.shape}")
         # preprocessing
         input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
@@ -526,22 +529,25 @@ class Pix2PixCFOSubModel(BaseModel):
 
         # prediction
         pred = self.netG(input_)
-        pred = torch.clamp(pred, 0.0, 1.0)
+        if should_scale:
+            pred = scale(self, pred, scale_back=True)
+        if not self.scale_complex_part:
+            pred = torch.clamp(pred, 0.0, 1.0)
         return pred
 
-    def forward(self, input_, target_):
+    def forward(self, input_, target_, should_scale):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         input_, target_ = self.preprocess_data(input_, target_)
         self.fake_B = self.netG(input_)
-        self.fake_B = torch.clamp(self.fake_B, 0.0, 1.0)
+        if should_scale:
+            self.fake_B = scale(self, self.fake_B, scale_back=True)
+        if not self.scale_complex_part or not should_scale:
+            self.fake_B = torch.clamp(self.fake_B, 0.0, 1.0)
         self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
 
-    def forward_and_return(self, input_, target_):
+    def forward_and_return(self, input_, target_, should_scale=True):
         """Run forward pass and returns the output"""
-        input_, target_ = self.preprocess_data(input_, target_)
-        self.fake_B = self.netG(input_)
-        self.fake_B = torch.clamp(self.fake_B, 0.0, 1.0)
-        self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
+        self.forward(input_, target_, should_scale)
         return self.fake_B
 
     def backward_D(self, input_, target_, pred_):
@@ -566,6 +572,8 @@ class Pix2PixCFOSubModel(BaseModel):
             pred_ = pred_.unsqueeze(0)
         if target_.dim() == 3:
             target_ = target_.unsqueeze(0)
+
+        # target_ = scale(self, target_, scale_back=True)
         
         # Fake; stop backprop to the generator by detaching fake_B
         fake_AB = torch.cat((input_, pred_), 1)  # we use conditional GANs; we need to feed both input and output to the discriminator
@@ -637,6 +645,10 @@ class Pix2PixCFOSubModel(BaseModel):
 
     def optimize_parameters(self, input_, target_, pred_):
         # self.forward(input_, target_)                   # compute fake images: G(A)
+
+        # upscale target if scaling is active
+        target_ = scale(self, target_, scale_back=False)
+
         # update D
         self.set_requires_grad(self.netD, True)  # enable backprop for D
         self.optimizer_D.zero_grad()     # set D's gradients to zero
@@ -717,6 +729,14 @@ def adjust_shape(tensor_1, tensor_2):
     # print(f"From {start_shape} -> {tensor_1.shape} (missing: {missing_dims}, goal shape: {tensor_2.shape})")
     return tensor_1
 
-
+def scale(model, image, scale_back=False):
+    if not model.is_base_model and model.scale_complex_part:
+        if scale_back:
+            return torch.exp(image) - 1e-8 
+        else:
+            return torch.log(image + 1e-8)
+    else:
+        return image
+            
 
 
