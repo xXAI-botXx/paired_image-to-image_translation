@@ -45,6 +45,23 @@ class WeightedCombinedLoss(nn.Module):
         self.ssim_module = kornia.losses.SSIMLoss(window_size=11, reduction='mean')
         # self.ssim_module = kornia.losses.MS_SSIMLoss(reduction='mean')
 
+    def _match_batch(self, tensor, ref):
+        """
+        Ensure tensor.batch == ref.batch.
+        - If tensor has batch==1 and ref has batch>1, repeat tensor along batch.
+        - If tensor has batch>ref.batch, slice tensor to ref.batch.
+        - Otherwise return tensor unchanged.
+        """
+        if tensor is None:
+            return None
+        if tensor.shape[0] == ref.shape[0]:
+            return tensor
+        if tensor.shape[0] == 1 and ref.shape[0] > 1:
+            # repeat the single mask to match ref batch
+            repeat_factors = [ref.shape[0]] + [1] * (tensor.ndim - 1)
+            return tensor.repeat(*repeat_factors)
+        # If mask batch > ref batch, take the first ref.shape[0] items (safer than erroring)
+        return tensor[:ref.shape[0]]
 
     def silog_loss(self, pred, target, weight_map):
         eps = 1e-6
@@ -170,6 +187,9 @@ class WeightedCombinedLoss(nn.Module):
     def forward(self, pred, target, weight_map=None):
         if type(weight_map) == type(None):
             weight_map = calc_weight_map(target)
+
+        weight_map = self._match_batch(weight_map, pred)
+
         loss_silog = self.silog_loss(pred, target, weight_map)
         loss_grad = self.gradient_l1_loss(pred, target, weight_map)
         loss_ssim = self.ssim_loss(pred, target, weight_map)
@@ -333,7 +353,9 @@ class Pix2PixModel(BaseModel):
             parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--masked', action='store_true', help='Should mask with the target and threshold at 0')
-            parser.add_argument('--weighted_loss', action='store_true', help='Should use weighted loss or standard l1-loss.')
+            parser.add_argument('--use_weighted_loss', action='store_true', help='Should use weighted loss or standard l1-loss.')
+
+            # print("modify: default weighted_loss =", parser.get_default('use_weighted_loss'))
 
         return parser
 
@@ -346,7 +368,7 @@ class Pix2PixModel(BaseModel):
         BaseModel.__init__(self, opt)
         if self.isTrain:
             self.masked = opt.masked
-            self.weighted_loss = opt.weighted_loss
+            self.use_weighted_loss = opt.use_weighted_loss
             self.train_mask_area = True
 
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
@@ -771,69 +793,52 @@ class Pix2PixModel(BaseModel):
     def backward_D(self):
         """Calculate GAN loss for the discriminator"""
         # Fake; stop backprop to the generator by detaching fake_B
-        fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # we use conditional GANs; we need to feed both input and output to the discriminator
-        pred_fake = self.netD(fake_AB.detach())
-        
-        # Real
-        real_AB = torch.cat((self.real_A, self.real_B), 1)
-        pred_real = self.netD(real_AB)
+        if (not self.masked or self.current_epoch > self.epochs*0.8): 
+            fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # we use conditional GANs; we need to feed both input and output to the discriminator
+            pred_fake = self.netD(fake_AB.detach())
+            
+            # Real
+            real_AB = torch.cat((self.real_A, self.real_B), 1)
+            pred_real = self.netD(real_AB)
 
-        if self.opt.wgangp:
-            # WGAN loss
-            self.loss_D_fake = pred_fake.mean()
-            self.loss_D_real = -pred_real.mean()
+            if self.opt.wgangp:
+                # WGAN loss
+                self.loss_D_fake = pred_fake.mean()
+                self.loss_D_real = -pred_real.mean()
 
-            # Gradient penalty
-            self.loss_D_gp = compute_gradient_penalty(
-                                 self.netD, real_AB.detach(), fake_AB.detach(), device=self.device
-                             )
+                # Gradient penalty
+                self.loss_D_gp = compute_gradient_penalty(
+                                    self.netD, real_AB.detach(), fake_AB.detach(), device=self.device
+                                )
 
-            # Total loss
-            self.loss_D = self.loss_D_real + self.loss_D_fake + self.loss_D_gp
+                # Total loss
+                self.loss_D = self.loss_D_real + self.loss_D_fake + self.loss_D_gp
+            else:
+                self.loss_D_fake = self.criterionGAN(pred_fake, False)
+                self.loss_D_real = self.criterionGAN(pred_real, True)
+                # combine loss and calculate gradients
+                self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
+            
+            self.loss_D.backward()
         else:
-            self.loss_D_fake = self.criterionGAN(pred_fake, False)
-            self.loss_D_real = self.criterionGAN(pred_real, True)
-            # combine loss and calculate gradients
-            self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
-        
-        self.loss_D.backward()
+            self.loss_D_real = 0.0
+            self.loss_D_fake = 0.0
+            self.loss_D_gp = 0.0
+            self.loss_D = 0.0
 
     def backward_G(self):
         """Calculate GAN and L1 loss for the generator"""
         # First, G(A) should fake the discriminator
-        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-        pred_fake = self.netD(fake_AB)
+        if (not self.masked or self.current_epoch > self.epochs*0.8): 
+            fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+            pred_fake = self.netD(fake_AB)
 
-        if self.opt.wgangp:
-            self.loss_G_GAN = -pred_fake.mean()
+            if self.opt.wgangp:
+                self.loss_G_GAN = -pred_fake.mean()
+            else:
+                self.loss_G_GAN = self.criterionGAN(pred_fake, True)
         else:
-            self.loss_G_GAN = self.criterionGAN(pred_fake, True)
-        
-        # Second, G(A) = B
-        # L1 loss masked
-        # if self.masked:
-        #     # Compute pixel-wise absolute difference
-        #     l1_diff = torch.abs(self.fake_B - self.real_B)
-
-        #     # Create mask where real_B > 0
-        #     mask = (self.real_B > 0).float() # (self.real_B > 0).astype(np.uint8) * 255
-
-        #     # Apply mask and normalize
-        #     if False:
-        #         masked_l1 = l1_diff * mask
-        #         num_masked = torch.clamp(mask.sum(), min=1.0)  # prevent division by zero
-        #         self.loss_G_L1 = masked_l1.sum() / num_masked
-        #     else:
-        #         if self.train_mask_area:
-        #             self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))  # mask) 
-        #             # self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=None) 
-        #         else:
-        #             inverted_mask = 1 - mask
-        #             self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=inverted_mask) 
-        # else:
-        #     # No masking
-        #     self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0))
-        
+            self.loss_G_GAN = 0.0
 
         # calc second loss with masking and optional weighted loss
         if self.masked:
