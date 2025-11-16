@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from .base_model import BaseModel
 from . import networks
 from .pix2pix_cfo_sub_model import Pix2PixCFOSubModel
-from data.extended_physgen_dataset import PhysGenDataset
 
 
 class FusionHead(nn.Module):
@@ -30,6 +29,8 @@ class FusionHead(nn.Module):
         loss = self.loss(pred_, target_)
         self.last_loss = loss.cpu().detach()
         loss.backward()
+
+
 
 class Pix2PixCFOModel(BaseModel):
     """ This class implements the pix2pix complex focus only model, for learning a mapping from input images to output images given paired data.
@@ -122,28 +123,11 @@ class Pix2PixCFOModel(BaseModel):
                             'fusion']
 
         if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
-            self.train_dataset_base = PhysGenDataset(mode='train', variation="sound_baseline", input_type="osm", output_type="standard",
-                                                     reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
-            self.val_dataset_base = PhysGenDataset(mode='validation', variation="sound_baseline", input_type="osm", output_type="standard",
-                                                   reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
-
-            self.train_dataset_complex = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="complex_only",
-                                                        reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
-            self.val_dataset_complex = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="complex_only",
-                                                      reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
-
-            self.train_dataset_fusion = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="standard",
-                                                       reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
-            self.val_dataset_fusion = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="standard",
-                                                     reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
-            self.datasets = [(self.train_dataset_base, self.val_dataset_base), (self.train_dataset_complex, self.val_dataset_complex), (self.train_dataset_fusion, self.val_dataset_fusion)]
-
             self.epochs = opt.n_epochs
             self.train_pix2pix_epochs = int(self.epochs*0.8)
+            self.debug_print = True
         self.current_epoch = 0
         self.should_validate = False
-        self.data_idx_train = 0
-        self.data_idx_val = 0
             
 
     def set_input(self, input_):
@@ -154,8 +138,17 @@ class Pix2PixCFOModel(BaseModel):
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
+        (input_base_inputs, input_base_targets), \
+        (input_complex_inputs, input_complex_targets), \
+        (_, _), \
+        idx = input_
+
+        self.current_data = input_
+
+        input_ = [input_base_inputs, input_base_targets, idx]
+
         self.base_model.set_input(input_)
-        self.complex_model.set_input(input_)
+        self.complex_model.set_input([input_complex_inputs, input_complex_targets, idx])
         
         self.real_A = self.base_model.real_A
         self.real_B = self.base_model.real_B
@@ -169,13 +162,13 @@ class Pix2PixCFOModel(BaseModel):
 
     def set_to_validation(self):
         self.should_validate = True
-        self.data_idx_train = 0
-        self.data_idx_val = 0
+        # self.train_loader.current_index = 0
+        # self.val_loader.current_index = 0
 
     def set_to_train(self):
         self.should_validate = False
-        self.data_idx_train = 0
-        self.data_idx_val = 0
+        # self.train_loader.current_index = 0
+        # self.val_loader.current_index = 0
 
     def set_current_epoch(self, epoch):
         new_epoch = self.current_epoch != epoch
@@ -185,43 +178,82 @@ class Pix2PixCFOModel(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.forward_and_return(model_idx=model_idx)
 
-    def forward_and_return(self, model_idx=0):
+    def forward_and_return(self, model_idx=0, should_take_last=False):
         """Run forward pass and returns the output"""
         
         if self.isTrain:
-            if self.should_validate:
-                base_data = to_device(self.datasets[0][1][self.data_idx_val])
-                complex_data = to_device(self.datasets[1][1][self.data_idx_val])
-                _, target_, idx_ = to_device(self.datasets[2][1][self.data_idx_val])
+            # (train_base_inputs, train_base_targets), \
+            # (train_complex_inputs, train_complex_targets), \
+            # (train_fusion_inputs, train_fusion_targets), idx = self.train_loader.get_next() if not should_take_last else self.train_loader.get_last()
 
-                base_pred = self.base_model.forward_and_return(*base_data).unsqueeze(1)
-                complex_pred = self.complex_model.forward_and_return(*complex_data).unsqueeze(1)
+            # (val_base_inputs, val_base_targets), \
+            # (val_complex_inputs, val_complex_targets), \
+            # (val_fusion_inputs, val_fusion_targets), idx = self.val_loader.get_next() if not should_take_last else self.val_loader.get_last()
+
+            # if self.debug_print:
+            #     print(f"\n[DEBUG] Shapes in forward_and_return:\
+            #             \n    - Base Input {train_base_inputs.shape}\
+            #             \n    - Base Target {train_base_targets.shape} \
+            #             \n    - Complex Input {train_complex_inputs.shape} \
+            #             \n    - Complex Target {train_complex_targets.shape}\n")
+            #     self.debug_print = False
+
+            if self.should_validate:
+                (val_base_inputs, val_base_targets), \
+                (val_complex_inputs, val_complex_targets), \
+                (val_fusion_inputs, val_fusion_targets), idx = self.current_data
+
+                base_data = (to_device(val_base_inputs), to_device(val_base_targets))
+                base_pred = self.base_model.forward_and_return(*base_data)
+                base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
+                base_data[0].cpu().detach()
+                base_data[1].cpu().detach()
+
+                complex_data = (to_device(val_complex_inputs), to_device(val_complex_targets))
+                complex_pred = self.complex_model.forward_and_return(*complex_data)
+                complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
+                complex_data[0].cpu().detach()
+                complex_data[1].cpu().detach()
                 
                 combined = torch.cat([base_pred, complex_pred], dim=1)
                 pred = self.fusion_head(combined)
                 if len(pred.shape) == 4:
                     pred = pred.squeeze(1)
-
-                self.data_idx_val += 1
             else:
-                base_data = to_device(self.datasets[0][0][self.data_idx_train])
-                complex_data = to_device(self.datasets[1][0][self.data_idx_train])
-                _, target_, idx_ = to_device(self.datasets[2][0][self.data_idx_train])
-                
+                (train_base_inputs, train_base_targets), \
+                (train_complex_inputs, train_complex_targets), \
+                (train_fusion_inputs, train_fusion_targets), idx = self.current_data
+
                 if model_idx == 0:
-                    pred = self.base_model.forward_and_return(base_data[0], base_data[1]).unsqueeze(1)
+                    base_data = (to_device(train_base_inputs), to_device(train_base_targets))
+                    pred = self.base_model.forward_and_return(base_data[0], base_data[1])
+                    pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
+                    base_data[0].cpu().detach()
+                    base_data[1].cpu().detach()
                 elif model_idx == 1:
-                    pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1]).unsqueeze(1)
+                    complex_data = (to_device(train_complex_inputs), to_device(train_complex_targets))
+                    pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
+                    pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
+                    complex_data[0].cpu().detach()
+                    complex_data[1].cpu().detach()
                 else:
-                    base_pred = self.base_model.forward_and_return(base_data[0], base_data[1]).unsqueeze(1)
-                    complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1]).unsqueeze(1)
+                    base_data = (to_device(train_base_inputs), to_device(train_base_targets))
+                    base_pred = self.base_model.forward_and_return(base_data[0], base_data[1])
+                    base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
+                    base_data[0].cpu().detach()
+                    base_data[1].cpu().detach()
+
+                    complex_data = (to_device(train_complex_inputs), to_device(train_complex_targets))
+                    complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
+                    complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
+                    complex_data[0].cpu().detach()
+                    complex_data[1].cpu().detach()
                     
                     combined = torch.cat([base_pred, complex_pred], dim=1)
                     pred = self.fusion_head(combined)
                     if len(pred.shape) == 4:
                         pred = pred.squeeze(1)
 
-                # self.data_idx_train += 1
         else:
             base_pred = self.base_model(self.real_A)
             complex_pred = self.complex_model(self.real_A)
@@ -236,13 +268,6 @@ class Pix2PixCFOModel(BaseModel):
             if len(pred.shape) == 4:
                 pred = pred.squeeze(1)
 
-        # fake_B = pred
-        # if fake_B.dim() == 5:
-        #     fake_B = fake_B.squeeze(0).squeeze(0)
-        # elif fake_B.dim() == 4:
-        #     fake_B = fake_B.squeeze(0)
-        # elif fake_B.dim() == 2:
-        #     fake_B = fake_B.unsqueeze(0)
         self.fake_B = pred
         self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return pred
@@ -291,32 +316,35 @@ class Pix2PixCFOModel(BaseModel):
         8. model.backward_G()
         9. model.optimizer_G.step()
         """
-        base_data = to_device(self.datasets[0][0][self.data_idx_train])
-        complex_data = to_device(self.datasets[1][0][self.data_idx_train])
-        _, target_, idx_ = to_device(self.datasets[2][0][self.data_idx_train])
+        (train_base_inputs, train_base_targets), \
+        (train_complex_inputs, train_complex_targets), \
+        (train_fusion_inputs, train_fusion_targets), idx = self.current_data
 
         if self.current_epoch <= self.train_pix2pix_epochs:
             # Basline
-            pred_ = self.forward_and_return(model_idx=0)
+            pred_ = self.forward_and_return(model_idx=0, should_take_last=True)
+            base_data = (to_device(train_base_inputs), to_device(train_base_targets))
             self.base_model.optimize_parameters(base_data[0], base_data[1], pred_)
+            base_data[0].cpu().detach()
+            base_data[1].cpu().detach()
             # print(f"\nBaseline Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
 
             # Complex
-            pred_ = self.forward_and_return(model_idx=1)
+            pred_ = self.forward_and_return(model_idx=1, should_take_last=True)
+            complex_data = (to_device(train_complex_inputs), to_device(train_complex_targets))
             self.complex_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
+            complex_data[0].cpu().detach()
+            complex_data[1].cpu().detach()
             # print(f"\nComplex Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
         else:
             # Fusion
             self.fusion_head.optimizer.zero_grad()
-            pred_ = self.forward_and_return(model_idx=2)
-            self.fusion_head.backward(target_, pred_)
+            pred_ = self.forward_and_return(model_idx=2, should_take_last=True)
+            train_fusion_targets = to_device(train_fusion_targets)
+            self.fusion_head.backward(train_fusion_targets, pred_)
+            train_fusion_targets.cpu().detach()
             self.fusion_head.optimizer.step()
             # print(f"\nFusion Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
-
-        self.data_idx_train += 1
-
-        if self.data_idx_train == len(self.datasets[1][0]):
-            self.data_idx_train = 0
 
         self.update_loss()
         # self.adjust_image_shapes()
@@ -324,10 +352,15 @@ class Pix2PixCFOModel(BaseModel):
 
 def to_device(dataset):
     # Input: [Tensor(), Tensor(), int]
-    if len(dataset) != 3:
-        raise ValueError("Expected dataset to be a list of 3 values")
+    # if len(dataset) != 2:
+    #     raise ValueError("Expected dataset to be a list of 2 values")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return [dataset[0].to(device), dataset[1].to(device), dataset[2]]
+    if isinstance(dataset, (list, tuple)):
+        return type(dataset)(item.to(device) for item in dataset)
+    elif isinstance(dataset, torch.Tensor):
+        return dataset.to(device)
+    else:
+        return dataset # [dataset[0].to(device), dataset[1].to(device)]
 
 
 def get_image_paths(self):

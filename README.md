@@ -244,7 +244,7 @@ All with the same settings:
 ```bash
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_losses --model pix2pix_cfo --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss > ./logs/pix2pix_cfo_adjusted_losses.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_losses --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss > ./logs/pix2pix_cfo_adjusted_losses.log 2>&1 &
 ```
 
 And also with just the l1 loss:
@@ -272,6 +272,11 @@ nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_maske
 ```bash
 conda activate gan
 nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked_2 --model pix2pix --n_epochs 120 --lr 0.0001 --beta1 0.5 --batch_size 64 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked > ./logs/pix2pix_1_0_masked_2.log 2>&1 &
+```
+
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked_3 --model pix2pix --n_epochs 120 --lr 0.00001 --beta1 0.5 --batch_size 64 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked > ./logs/pix2pix_1_0_masked_3.log 2>&1 &
 ```
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`

@@ -58,6 +58,7 @@ class WeightedCombinedLoss(nn.Module):
 
     def gradient_l1_loss(self, pred, target, weight_map):
         # Create Channel Dimension
+        # Make sure we have shape: [B, C, H, W]
         if pred.ndim == 3:
             pred = pred.unsqueeze(1)
         if target.ndim == 3:
@@ -351,11 +352,11 @@ class Pix2PixCFOSubModel(BaseModel):
         # ! This will be not used, old code which attributes might will be accessed from the pipeline
         self.real_A = input[0].to(self.device)
         # Fix real image size 512x512 > 256x256
-        self.real_A = F.interpolate(self.real_A.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
+        self.real_A = F.interpolate(self.real_A, size=(256, 256), mode='bilinear', align_corners=False)
         # self.real_A = self.real_A.squeeze(0)
 
         self.real_B = input[1].to(self.device)
-        self.real_B = self.real_B.unsqueeze(0)
+        # self.real_B = self.real_B.unsqueeze(0)
         
         self.image_names_dict = OrderedDict()
         self.image_names_dict[f'real_A'] = input[0] if len(input[0].shape) == 4 else input[0].unsqueeze(0)
@@ -369,18 +370,10 @@ class Pix2PixCFOSubModel(BaseModel):
             print(f"\n[Debug] Image (self.realA) stats:\n    - min: {self.real_A.min().item():.2f}\n    - max: {self.real_A.max().item():.2f}\n    - mean: {self.real_A.mean().item():.2f}\n    - shape: {self.real_A.shape}")
             print(f"\n[Debug] Image (self.real_B) stats:\n    - min: {self.real_B.min().item():.2f}\n    - max: {self.real_B.max().item():.2f}\n    - mean: {self.real_B.mean().item():.2f}\n    - shape: {self.real_B.shape}")
         else:
-            pass    
+            pass
             
         self.forward_passes += 1
 
-        if self.forward_passes == 0:
-            print("New Input Images:")
-            print(f"\n[Debug] Image (self.realA) stats:\n    - min: {self.real_A.min().item():.2f}\n    - max: {self.real_A.max().item():.2f}\n    - mean: {self.real_A.mean().item():.2f}\n    - shape: {self.real_A.shape}")
-            print(f"\n[Debug] Image (self.real_B) stats:\n    - min: {self.real_B.min().item():.2f}\n    - max: {self.real_B.max().item():.2f}\n    - mean: {self.real_B.mean().item():.2f}\n    - shape: {self.real_B.shape}")
-        else:
-            pass    
-            
-        self.forward_passes += 1
 
     def set_current_epoch(self, epoch):
         new_epoch = self.current_epoch != epoch
@@ -392,11 +385,18 @@ class Pix2PixCFOSubModel(BaseModel):
 
     def preprocess_data(self, input_, target_):
         input_ = input_.to(self.device)
+
+        # Make sure we have shape: [B, C, H, W]
+        if input_.dim() == 3:
+            input_ = input_.unsqueeze(0)
+
         # Fix real image size 512x512 > 256x256
-        input_ = F.interpolate(input_.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
+        input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
 
         target_ = target_.to(self.device)
-        target_ = target_.unsqueeze(0)
+        # Make sure we have shape: [B, C, H, W]
+        if target_.dim() == 3:
+            target_ = target_.unsqueeze(0)
 
         return input_, target_
 
@@ -429,9 +429,20 @@ class Pix2PixCFOSubModel(BaseModel):
 
     def backward_D(self, input_, target_, pred_):
         """Calculate GAN loss for the discriminator"""
+        # print("SHAPES in backward_D:")
+        # print("input_:", input_.shape)
+        # print("pred_:", pred_.shape)
+        # print("target_:", target_.shape)
+
         input_ = adjust_shape(input_, target_)
         pred_ = adjust_shape(pred_, target_)
+
+        # print("after adjustment:")
+        # print("input_:", input_.shape)
+        # print("pred_:", pred_.shape)
+        # print("target_:", target_.shape)
         
+        # Make sure we have shape: [B, C, H, W]
         if input_.dim() == 3:
             input_ = input_.unsqueeze(0)
         if pred_.dim() == 3:
@@ -473,6 +484,7 @@ class Pix2PixCFOSubModel(BaseModel):
         pred_ = adjust_shape(pred_, target_)
         target_ = target_
 
+        # Make sure we have shape: [B, C, H, W]
         if input_.dim() == 3:
             input_ = input_.unsqueeze(0)
         if pred_.dim() == 3:

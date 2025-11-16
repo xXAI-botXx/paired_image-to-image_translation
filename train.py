@@ -29,6 +29,7 @@ import os, json
 
 from data.physgen_dataset import PhysGenDataset
 from datasets import load_dataset
+from data.residual_physgen_dataset import TripleComponentDataLoader, create_dataloader
 
 def create_val_functions(opt):
     """
@@ -74,7 +75,10 @@ def save_results(out_dir, results):
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
-    if not opt.dataset_mode.lower() == "physgen":
+    
+    if opt.model == "pix2pix_cfo":
+        dataset, val_dataset = create_dataloader(opt)
+    elif not opt.dataset_mode.lower() == "physgen":
         dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
         if opt.use_val_dataset:
             val_dataset = create_dataset(opt, is_validation_data=True)
