@@ -102,8 +102,6 @@ class PhysGenDataset(BaseDataset):
             if os.path.exists(ray_path):
                 rays = ips.ray_tracing.open(path=ray_path)
             else:
-                # FIXME
-                raise ValueError(f"Should load the rays, it seems like it did not find the path. Current folder items: {os.listdir('.')}")
                 rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
                                                     img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
                                                     directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	

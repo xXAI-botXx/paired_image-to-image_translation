@@ -1,4 +1,4 @@
-
+<!--
 ### Notice
 
 This fork changes a Pix2Pix Fork for applying NoiseModelling Dataset (also Base Simulation as input) and the PhysGen Dataset with the Pix2Pix Model. It also adds some helpful [run commands](#start-a-training-in-remote-ssh).<br>
@@ -9,14 +9,15 @@ All Architectures got tested and some did make good results but it would need mo
 
 I still think it is a interesting architecture and it is exciting to try out new/other architectures. So the architecture itself may fail for this task but see the architecture(s) as reference and maybe there is only a little issue and the architecture does work.
 
-Moreover this fork implements a Complex Focus Only (Residual Learning) Architecture with Pix2Pix.
+Moreover this fork implements a Complex Focus Only (Residual Learning) Architecture with Pix2Pix, Masked (Sample) Training with Pix2Pix (Post and pre) and adding simple Ray-Tracing simulation results to the input.
 
 <br><br>
+-->
 
 ### Contents:
-- [Hexa Wave Net](#hexa-wave-net)
-  - [Notice for this fork](#notice)
+- [Extended Pix2Pix](#extended-pix2pix)
   - [Architecture](#architecture)
+  - [Notice to naming/classification](#notice-to-namingclassification)
   - [Installing a working python/conda env](#installing-a-working-pythonconda-env)
   - [Start a Training](#start-a-training-in-remote-ssh)
   - [Transfer your data to training node/server](#transfer-your-data-to-training-nodeserver)
@@ -29,31 +30,89 @@ Moreover this fork implements a Complex Focus Only (Residual Learning) Architect
 
 <br>
 
-# Hexa Wave Net
+# Extended Pix2Pix
 
-<img src="./imgs/hexa_wave_net_logo_2.jpg"></img>
+This is the Repo for Pix2Pix applied to the PhysGen Benchmark!
+
+Contribution:
+- Pre & Post Masked Sample Training
+- Residual Design (CFO = Complex Focus Only -> splits the task in 2 seperate ones and applies 2 pix2pix on each)
+- Weighted Combined Loss (SSIM, L1, Edge Loss, ...)
+- Architecture Try-Outs like Hexa-Wave-Net
+
+<img src="./imgs/hexa_wave_net_logo_2.jpg" width="50%"></img>
+
 
 <br><br>
 
 
 ### Architecture
 
-Base Hexa-Wave Net Idea:
+Pix2Pix:
 ```
-        Input: 256x256xC
-           ↓
-  CNN Encoder (ConvNeXt): extracts local features
-           ↓
-      FNO Layer(s): models long-range frequency-aware field behavior
-           ↓
-  Latent Transformer Block:
-                    - Attention over spatial regions
-                    - Acts as a saliency filter: learns where to focus
-           ↓
-     SIREN Decoder (predicts continuous field from coordinates + latent features)
-           ↓
-        Output: 256x256xC
+                 ┌───────────────────────────────────────────────┐
+                 │                 GENERATOR (U-Net)             │
+                 └───────────────────────────────────────────────┘
+
+ Input Image
+     │
+     v
+ ┌───────────┐
+ │  Encoder  │  Downsampling path (features grow, size shrinks)
+ └───────────┘
+     │
+     v
+  [D1] 256→128  ────────────────┐
+  [D2] 128→64   ────────────────┤ skip connections
+  [D3] 64→32    ────────────────┤ (copied to decoder)
+  [D4] 32→16    ────────────────┤
+  [D5] 16→8     ────────────────┤
+  [D6] 8→4      ────────────────┤
+  [D7] 4→2      ────────────────┤
+  [Bottleneck] 2→1              │
+                                │
+                                v
+ ┌───────────┐
+ │ Decoder   │  Upsampling path (features shrink, size grows)
+ └───────────┘
+
+  [U1] 1→2      + skip(D7)
+  [U2] 2→4      + skip(D6)
+  [U3] 4→8      + skip(D5)
+  [U4] 8→16     + skip(D4)
+  [U5] 16→32    + skip(D3)
+  [U6] 32→64    + skip(D2)
+  [U7] 64→128   + skip(D1)
+     │
+     v
+ Output Image (same size as input)
+
+
+             ┌───────────────────────────────────────────────┐
+             │            DISCRIMINATOR (PatchGAN)           │
+             └───────────────────────────────────────────────┘
+
+ Concatenate:  (Input Image || Target or Generated Image)
+     │
+     v
+  [C1] Convolution
+     ↓
+  [C2] Convolution
+     ↓
+  [C3] Convolution
+     ↓
+  [C4] Convolution
+     ↓
+  [Output Patch Map]  →  e.g., 30×30 grid of real/fake values
+
 ```
+Amount of parameters Pix2Pix:
+```txt
+[Generator] Total number of parameters : 54.408 M
+[Discriminator] Total number of parameters : 2.765 M
+```
+
+<br><br>
 
 Complex Focus Only (Residual Learning) Idea:
 ```
@@ -82,9 +141,34 @@ Complex Focus Only (Residual Learning) Idea:
                  +---------------------+        
 ```
 
+Amount of parameters Pix2Pix CFO / Residual Design:
+```txt
+[Base Generator] Total number of parameters : 54.408 M
+[Base Discriminator] Total number of parameters : 2.765 M
+[Complex Generator] Total number of parameters : 54.408 M
+[Complex Discriminator] Total number of parameters : 2.765 M
+[Fusion Head] ?
+```
 
+<br><br>
 
-#### Explanaiton of Components:
+Base Hexa-Wave Net Idea:
+```
+        Input: 256x256xC
+           ↓
+  CNN Encoder (ConvNeXt): extracts local features
+           ↓
+      FNO Layer(s): models long-range frequency-aware field behavior
+           ↓
+  Latent Transformer Block:
+                    - Attention over spatial regions
+                    - Acts as a saliency filter: learns where to focus
+           ↓
+     SIREN Decoder (predicts continuous field from coordinates + latent features)
+           ↓
+        Output: 256x256xC
+```
+Explanation of components in HexaWaveNet:
 
 | Component   | Purpose                                         |
 | ----------- | ----------------------------------------------- |
@@ -93,6 +177,26 @@ Complex Focus Only (Residual Learning) Idea:
 | Transformer | **Learns saliency** dynamically in latent space |
 | SIREN       | Refines sharp, **continuous signal** edges      |
 
+
+
+<br><br>
+
+### Notice to naming/classification
+
+Pix2Pix is often described as a generative model, but strictly speaking, it performs conditional image-to-image translation using a U-Net with an additional adversarial loss.<br>
+Unlike an unconditional GAN, Pix2Pix does not learn to generate samples from a data distribution (does not approximate the distribution of output images). Instead, it learns a deterministic mapping from an input image (e.g., OSM data) to a corresponding target image (e.g., sound propagation results).
+
+The model does not contain an explicit source of randomness (respectively stochastic sampling) such as a latent vector $z$, except for dropout, the generator behaves deterministically.<br>
+Thus, Pix2Pix is better understood as a predictive model that uses adversarial loss only to encourage sharper and more realistic outputs, rather than as a true generative model.
+
+
+Given this, the project title `Can complex models learn complex relations?` could be better aligned with the method.
+A more accurate title could be:
+- `Improving Complex Feature Learning in Predictive Image-to-Image Models for Simulation Distillation`
+
+<br>
+
+Furthermore, investigating how much the adversarial loss actually improves performance in physical prediction tasks (such as sound propagation or other PhysGen-like domains) would be a valuable extension.
 
 
 ### Installing a working python/conda env:
@@ -111,6 +215,10 @@ pip install tqdm
 
 
 ### Start a Training (in remote SSH):
+
+-> Train on setted GPU-devices by adding `--gpu_ids` (`--gpu_ids GPU_IDS     gpu ids: e.g. 0 0,1,2, 0,2. use -1 for CPU (default: 0)`)
+
+-> See training parameters with `python train.py --help` (before activate caonda env: `conda activate gan`)
 
 -> Add your Weights & Bias API key:
 ```bash
@@ -207,15 +315,6 @@ cd ~/src/paired_image-to-image_translation
 nohup python train.py --dataroot ~/does_not_matter --name hexa_wave_net_1_0_3_other_loss --model hexa_wave_net --n_epochs 64 --lr 0.0007 --beta1 0.5 --batch_size 6 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_L1 100.0 --lambda_GAN 1.0 --lambda_ssmi 10.0 --lambda_edge 30.0 --model_type 3 --use_wandb --wandb_project_name Master-PhysGen > ./training_hexa_wave_net_1_0_3_other_loss.log 2>&1 &
 ```
 
-Pix2Pix Complex Focus Only:
-```bash
-conda activate gan
-cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_2 --model pix2pix_cfo --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_2.log 2>&1 &
-
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_2_wgangp --model pix2pix_cfo --n_epochs 20 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --wgangp  --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_2_wgangp.log 2>&1 &
-```
-
 
 Physgen Prediction with TransU-Net & TransConvUNext:
 ```bash
@@ -226,6 +325,174 @@ nohup python train.py --dataroot ~/data/does_not_matter  --name transunet_1_0 --
 
 nohup python train.py --dataroot ~/data/does_not_matter  --name transconvunext_1_0 --model transconvunext --n_epochs 100 --lr 0.0002 --beta1 0.5 --batch_size 12 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --netG unet_256 --max_dataset_size inf --use_wandb --wandb_project_name Master-PhysGen > ./transconvunext_1_0.log 2>&1 &
 ```
+
+**Pix2Pix Complex Focus Only:**
+```bash
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_2 --model pix2pix_cfo --n_epochs 100 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_2.log 2>&1 &
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_2_wgangp --model pix2pix_cfo --n_epochs 20 --lr 0.0001 --beta1 0.5 --batch_size 1 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --wgangp  --use_wandb --wandb_project_name Master-PhysGen > ./pix2pix_cfo_2_wgangp.log 2>&1 &
+```
+
+With 2 seperate losses for base and complex + batchsize fixed:
+
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.5, 
+                                                weight_grad=50.0, 
+                                                weight_ssim=100.0,
+                                                weight_edge_aware=50.0,
+                                                weight_l1=10.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_losses --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss > ./logs/pix2pix_cfo_adjusted_losses.log 2>&1 &
+```
+
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=5.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=5.0,
+                                                weight_l1=0.5,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_losses_2 --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss > ./logs/pix2pix_cfo_adjusted_losses_2.log 2>&1 &
+```
+
+Using a inverted weight-map to counter the unbalanced histogram:
+
+> Notice that this weighted map (`--calc_weight_map_for_cfg_loss`) is currently only available for Pix2Pix-CFO (complex focus only / residual design) not for the standard Pix2Pix or other models. + the calculation of the weighted maps will take much time and therfore the training time is increased by a huge amount
+
+(applied on base and complex)
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=5.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=5.0,
+                                                weight_l1=0.5,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_1 --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss > ./logs/pix2pix_cfo_weighted_adjusted_losses_1.log 2>&1 &
+```
+
+(applied on base and complex)
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=5.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=5.0,
+                                                weight_l1=10.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_2 --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --gpu_ids 1 > ./logs/pix2pix_cfo_weighted_adjusted_losses_2.log 2>&1 &
+```
+
+Now with only applied on complex part:
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=5.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=5.0,
+                                                weight_l1=0.5,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_1_only_complex_loss_weighting --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 128 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --gpu_ids 1 > ./logs/pix2pix_cfo_weighted_adjusted_losses_1_only_complex_loss_weighting.log 2>&1 &
+```
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=5.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=5.0,
+                                                weight_l1=10.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_2_only_complex_loss_weighting --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 128 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --gpu_ids 2 > ./logs/pix2pix_cfo_weighted_adjusted_losses_2_only_complex_loss_weighting.log 2>&1 &
+```
+
 
 **Physgen with partwised simulated reflexions:**<br>
 All with the same settings:
@@ -240,12 +507,6 @@ All with the same settings:
   - Edge Aware = 50
   - L1 = 10
   - SILOG = 1
-
-```bash
-conda activate gan
-cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_losses --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --lambda_second 100.0 --use_cfg_loss > ./logs/pix2pix_cfo_adjusted_losses.log 2>&1 &
-```
 
 And also with just the l1 loss:
 ```bash
@@ -263,20 +524,30 @@ conda activate gan
 nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel_l1 --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 > ./logs/pix2pix_ips_360_one_channel_l1.log 2>&1 &
 ```
 
-Use masking:
-```bash
-conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked --use_wandb --wandb_project_name Master-PhysGen > ./logs/pix2pix_1_0_masked.log 2>&1 &
-```
 
-```bash
-conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked_2 --model pix2pix --n_epochs 120 --lr 0.0001 --beta1 0.5 --batch_size 64 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked > ./logs/pix2pix_1_0_masked_2.log 2>&1 &
-```
 
+**Masked Training** 
+
+Masked -> 80% of the epochs then unmasked
+Post-Masked -> 50% normal and then the last 50% epochs masked training
+
+> Notice that this masked training (`--masked` and `--post-masked`) are currently only available for Pix2Pix not for the residual Design or other models.
+
+(notice: 'pix2pix_1_0_masked_3' used 100% masking)
 ```bash
 conda activate gan
 nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked_3 --model pix2pix --n_epochs 120 --lr 0.00001 --beta1 0.5 --batch_size 64 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked > ./logs/pix2pix_1_0_masked_3.log 2>&1 &
+```
+
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_masked_4 --model pix2pix --n_epochs 100 --lr 0.00001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --masked > ./logs/pix2pix_1_0_masked_4.log 2>&1 &
+```
+
+post masking:
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_post_masked --model pix2pix --n_epochs 100 --lr 0.00001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --post_masked > ./logs/pix2pix_1_0_post_masked.log 2>&1 &
 ```
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`

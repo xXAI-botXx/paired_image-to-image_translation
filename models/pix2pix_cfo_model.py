@@ -73,6 +73,7 @@ class Pix2PixCFOModel(BaseModel):
             parser.add_argument('--lambda_second', type=float, default=100.0, help='weight for Second loss (L1)')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--use_cfg_loss', action='store_true', help='Whether to use a special complex focus only loss.')
+            parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
             # parser.add_argument("--variation", help="Dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined")
 
         return parser
@@ -138,17 +139,27 @@ class Pix2PixCFOModel(BaseModel):
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
-        (input_base_inputs, input_base_targets), \
-        (input_complex_inputs, input_complex_targets), \
-        (_, _), \
-        idx = input_
+        if self.isTrain:
+            (input_base_inputs, input_base_targets), \
+            (input_complex_inputs, input_complex_targets), \
+            (_, _), \
+            idx = input_
 
-        self.current_data = input_
+            self.current_data = input_
 
-        input_ = [input_base_inputs, input_base_targets, idx]
+            input_ = [input_base_inputs, input_base_targets, idx]
 
-        self.base_model.set_input(input_)
-        self.complex_model.set_input([input_complex_inputs, input_complex_targets, idx])
+            self.base_model.set_input(input_)
+            self.complex_model.set_input([input_complex_inputs, input_complex_targets, idx])
+        else:
+            input_ = [input_[0] if input_[0].ndim == 4 else input_[0].unsqueeze(0), \
+                      input_[1] if input_[1].ndim == 4 else input_[1].unsqueeze(0), \
+                      input_[2]]
+            self.current_data = input_
+            # input_ = [inputs, targets, idx]
+
+            self.base_model.set_input(input_)
+            self.complex_model.set_input(input_)
         
         self.real_A = self.base_model.real_A
         self.real_B = self.base_model.real_B
@@ -250,6 +261,7 @@ class Pix2PixCFOModel(BaseModel):
                     complex_data[1].cpu().detach()
                     
                     combined = torch.cat([base_pred, complex_pred], dim=1)
+                    self.fusion_head = self.fusion_head.to(combined.device)
                     pred = self.fusion_head(combined)
                     if len(pred.shape) == 4:
                         pred = pred.squeeze(1)

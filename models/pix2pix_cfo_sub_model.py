@@ -260,6 +260,7 @@ class Pix2PixCFOSubModel(BaseModel):
             parser.add_argument('--lambda_second', type=float, default=100.0, help='weight for the second loss (L1 Loss)')
             parser.add_argument('--wgangp', action='store_true', help='Use WGAN-GP (loss modification)')
             parser.add_argument('--use_cfg_loss', action='store_true', help='Whether to use a special complex focus only loss.')
+            parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
 
         return parser
 
@@ -327,16 +328,18 @@ class Pix2PixCFOSubModel(BaseModel):
                                                         weight_range=0.0)
         else:
             self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
-                                                        weight_silog=0.5, 
-                                                        weight_grad=50.0, 
-                                                        weight_ssim=100.0,
-                                                        weight_edge_aware=50.0,
+                                                        weight_silog=0.0, 
+                                                        weight_grad=5.0, 
+                                                        weight_ssim=10.0,
+                                                        weight_edge_aware=5.0,
                                                         weight_l1=10.0,
                                                         weight_var=0.0,
                                                         weight_range=0.0)
+        self.is_base_model = is_base_model
         
         self.lambda_GAN = 1.0
         self.use_cfg_loss = opt.use_cfg_loss
+        self.calc_weight_map_for_cfg_loss = opt.calc_weight_map_for_cfg_loss
         self.epochs_with_gan = 0
         self.forward_passes = 0
         self.current_epoch = 0
@@ -503,7 +506,11 @@ class Pix2PixCFOSubModel(BaseModel):
         
         # Second, G(A) = B
         if self.use_cfg_loss:
-            self.loss_second = self.combined_loss(pred_, target_, weight_map=torch.ones_like(self.real_B))  # torch.full(self.real_B.cpu().detach().shape, 1.0)) # (self.real_B > 0).astype(np.uint8) * 255)
+            if self.calc_weight_map_for_cfg_loss and not self.is_base_model:
+                weight_map = None
+            else:
+                weight_map = torch.ones_like(self.real_B)
+            self.loss_second = self.combined_loss(pred_, target_, weight_map=weight_map)  # torch.full(self.real_B.cpu().detach().shape, 1.0)) # (self.real_B > 0).astype(np.uint8) * 255)
         else:
             self.loss_second = self.criterionL1(pred_, target_)
 

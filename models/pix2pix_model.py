@@ -353,6 +353,7 @@ class Pix2PixModel(BaseModel):
             parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--masked', action='store_true', help='Should mask with the target and threshold at 0')
+            parser.add_argument('--post_masked', action='store_true', help='Should mask with the target and threshold at 50%')
             parser.add_argument('--use_weighted_loss', action='store_true', help='Should use weighted loss or standard l1-loss.')
 
             # print("modify: default weighted_loss =", parser.get_default('use_weighted_loss'))
@@ -368,6 +369,7 @@ class Pix2PixModel(BaseModel):
         BaseModel.__init__(self, opt)
         if self.isTrain:
             self.masked = opt.masked
+            self.post_masked = opt.post_masked
             self.use_weighted_loss = opt.use_weighted_loss
             self.train_mask_area = True
 
@@ -763,7 +765,7 @@ class Pix2PixModel(BaseModel):
         new_epoch = self.current_epoch != epoch
         self.current_epoch = epoch
 
-        if self.masked:
+        if self.masked or self.post_masked:
             self.mask = shifted_mask(batch_size=self.batch_size, height=256, width=256, device=self.device, 
                                      region_size=(16, 16), epoch=self.current_epoch, shift_every_n_epochs=10,
                                      max_epoch=self.epochs)
@@ -793,7 +795,7 @@ class Pix2PixModel(BaseModel):
     def backward_D(self):
         """Calculate GAN loss for the discriminator"""
         # Fake; stop backprop to the generator by detaching fake_B
-        if (not self.masked or self.current_epoch > self.epochs*0.8): 
+        if (not self.masked or self.current_epoch > self.epochs*0.8): # and (not self.post_masked or self.current_epoch > self.epochs*0.5): 
             fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # we use conditional GANs; we need to feed both input and output to the discriminator
             pred_fake = self.netD(fake_AB.detach())
             
@@ -829,7 +831,7 @@ class Pix2PixModel(BaseModel):
     def backward_G(self):
         """Calculate GAN and L1 loss for the generator"""
         # First, G(A) should fake the discriminator
-        if (not self.masked or self.current_epoch > self.epochs*0.8): 
+        if (not self.masked or self.current_epoch > self.epochs*0.8):  # and (not self.post_masked or self.current_epoch > self.epochs*0.5): 
             fake_AB = torch.cat((self.real_A, self.fake_B), 1)
             pred_fake = self.netD(fake_AB)
 
@@ -841,7 +843,7 @@ class Pix2PixModel(BaseModel):
             self.loss_G_GAN = 0.0
 
         # calc second loss with masking and optional weighted loss
-        if self.masked:
+        if (self.masked and self.current_epoch <= self.epochs*0.8) or (self.post_masked and self.current_epoch > self.epochs*0.5):
             if self.weighted_loss:
                 self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=self.mask)
             else:
