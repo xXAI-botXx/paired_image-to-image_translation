@@ -389,7 +389,7 @@ nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_adjusted_l
 
 Using a inverted weight-map to counter the unbalanced histogram:
 
-> Notice that this weighted map (`--calc_weight_map_for_cfg_loss`) is currently only available for Pix2Pix-CFO (complex focus only / residual design) not for the standard Pix2Pix or other models. + the calculation of the weighted maps will take much time and therfore the training time is increased by a huge amount
+> Notice that this weighted map (`--calc_weight_map_for_cfg_loss`) is currently only available for Pix2Pix-CFO (complex focus only / residual design) not for the standard Pix2Pix or other models. + the calculation of the weighted maps will take much time and therfore the training time is increased by a huge amount (fix is in work)
 
 (applied on base and complex)
 ```bash
@@ -491,6 +491,32 @@ else:
 conda activate gan
 cd ~/src/paired_image-to-image_translation
 nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_2_only_complex_loss_weighting --model pix2pix_cfo --n_epochs 100 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 128 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --gpu_ids 2 > ./logs/pix2pix_cfo_weighted_adjusted_losses_2_only_complex_loss_weighting.log 2>&1 &
+```
+
+After fixing performnce of CFO map calculation:
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=5.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=5.0,
+                                                weight_l1=10.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_2_only_complex_loss_weighting_loaded_weights --model pix2pix_cfo --n_epochs 80 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --gpu_ids 2 > ./logs/pix2pix_cfo_weighted_adjusted_losses_2_only_complex_loss_weighting_loaded_weights.log 2>&1 &
 ```
 
 

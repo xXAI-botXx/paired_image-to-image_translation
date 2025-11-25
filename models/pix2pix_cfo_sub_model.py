@@ -1,3 +1,5 @@
+import os
+import shutil
 from collections import OrderedDict
 
 import numpy as np
@@ -13,13 +15,14 @@ from . import networks
 class WeightedCombinedLoss(nn.Module):
     def __init__(self, 
                  silog_lambda=0.5, 
-                 weight_silog=0.5, 
-                 weight_grad=10.0, 
+                 weight_silog=0.0, 
+                 weight_grad=0.5, 
                  weight_ssim=5.0,
-                 weight_edge_aware=10.0,
+                 weight_edge_aware=0.5,
                  weight_l1=1.0,
-                 weight_var=1.0,
-                 weight_range=1.0):
+                 weight_var=0.0,
+                 weight_range=0.0,
+                 weight_blur=0.0):
         super().__init__()
         self.silog_lambda = silog_lambda
         self.weight_silog = weight_silog
@@ -29,6 +32,7 @@ class WeightedCombinedLoss(nn.Module):
         self.weight_l1 = weight_l1
         self.weight_var = weight_var
         self.weight_range = weight_range
+        self.weight_blur = weight_blur
 
         self.avg_loss_silog = 0
         self.avg_loss_grad = 0
@@ -37,12 +41,32 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_edge_aware = 0
         self.avg_loss_var = 0
         self.avg_loss_range = 0
+        self.avg_loss_blur = 0
         self.steps = 0
+
+        self.save_dir = None
 
         # Instantiate SSIMLoss module
         self.ssim_module = kornia.losses.SSIMLoss(window_size=11, reduction='mean')
         # self.ssim_module = kornia.losses.MS_SSIMLoss(reduction='mean')
 
+    def _match_batch(self, tensor, ref):
+        """
+        Ensure tensor.batch == ref.batch.
+        - If tensor has batch==1 and ref has batch>1, repeat tensor along batch.
+        - If tensor has batch>ref.batch, slice tensor to ref.batch.
+        - Otherwise return tensor unchanged.
+        """
+        if tensor is None:
+            return None
+        if tensor.shape[0] == ref.shape[0]:
+            return tensor
+        if tensor.shape[0] == 1 and ref.shape[0] > 1:
+            # repeat the single mask to match ref batch
+            repeat_factors = [ref.shape[0]] + [1] * (tensor.ndim - 1)
+            return tensor.repeat(*repeat_factors)
+        # If mask batch > ref batch, take the first ref.shape[0] items (safer than erroring)
+        return tensor[:ref.shape[0]]
 
     def silog_loss(self, pred, target, weight_map):
         eps = 1e-6
@@ -136,16 +160,52 @@ class WeightedCombinedLoss(nn.Module):
         
         return min_loss + max_loss
 
-    def forward(self, pred, target, weight_map=None):
+    def blur_loss(self, pred, target):
+        laplacian_kernel = torch.tensor([[[[0, 1, 0],
+                                           [1, -4, 1],
+                                           [0, 1, 0]]]], dtype=pred.dtype, device=pred.device)
+
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        if target.ndim == 3:
+            target = target.unsqueeze(1)
+
+        pred_lap = F.conv2d(pred, laplacian_kernel, padding=1)
+        target_lap = F.conv2d(target, laplacian_kernel, padding=1)
+
+        return F.l1_loss(pred_lap, target_lap)
+
+    def blur_loss(self, pred, target):
+        laplacian_kernel = torch.tensor([[[[0, 1, 0],
+                                           [1, -4, 1],
+                                           [0, 1, 0]]]], dtype=pred.dtype, device=pred.device)
+
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        if target.ndim == 3:
+            target = target.unsqueeze(1)
+
+        pred_lap = F.conv2d(pred, laplacian_kernel, padding=1)
+        target_lap = F.conv2d(target, laplacian_kernel, padding=1)
+
+        return F.l1_loss(pred_lap, target_lap)
+
+    def forward(self, pred, target, weight_map=None, data_idx=None, should_save=False, first_pass=False):
         if type(weight_map) == type(None):
-            weight_map = calc_weight_map(target)
-        loss_silog = self.silog_loss(pred, target, weight_map)
-        loss_grad = self.gradient_l1_loss(pred, target, weight_map)
-        loss_ssim = self.ssim_loss(pred, target, weight_map)
-        loss_l1 = self.l1_loss(pred, target, weight_map)
-        loss_edge_aware = self.edge_aware_loss(pred, target, weight_map)
-        loss_var = 0.0 if self.weight_var == 0.0 else self.variance_loss(pred, target)
-        loss_range = 0.0 if self.weight_range == 0.0 else self.range_loss(pred, target)
+            weight_map, self.save_dir = calc_weight_map(target, given_save_dir=self.save_dir, data_idx=data_idx, should_save=should_save, first_pass=first_pass)
+        
+        weight_map = self._match_batch(weight_map, pred)
+
+        device = pred.device
+        
+        loss_silog = torch.tensor(0.0, device=device) if self.weight_silog == 0.0 else self.silog_loss(pred, target, weight_map)
+        loss_grad = torch.tensor(0.0, device=device) if self.weight_grad == 0.0 else self.gradient_l1_loss(pred, target, weight_map)
+        loss_ssim = torch.tensor(0.0, device=device) if self.weight_ssim == 0.0 else self.ssim_loss(pred, target, weight_map)
+        loss_l1 = torch.tensor(0.0, device=device) if self.weight_l1 == 0.0 else self.l1_loss(pred, target, weight_map)
+        loss_edge_aware = torch.tensor(0.0, device=device) if self.weight_edge_aware == 0.0 else self.edge_aware_loss(pred, target, weight_map)
+        loss_var = torch.tensor(0.0, device=device) if self.weight_var == 0.0 else self.variance_loss(pred, target)
+        loss_range = torch.tensor(0.0, device=device) if self.weight_range == 0.0 else self.range_loss(pred, target)
+        loss_blur = torch.tensor(0.0, device=device) if self.weight_blur == 0.0 else self.blur_loss(pred, target)
 
         self.avg_loss_silog += loss_silog
         self.avg_loss_grad += loss_grad
@@ -154,6 +214,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_edge_aware += loss_edge_aware
         self.avg_loss_var += loss_var
         self.avg_loss_range += loss_range
+        self.avg_loss_blur += loss_blur
         self.steps += 1
 
         total_loss = (
@@ -163,7 +224,8 @@ class WeightedCombinedLoss(nn.Module):
             self.weight_edge_aware * loss_edge_aware +
             self.weight_l1 * loss_l1 +
             self.weight_var * loss_var +
-            self.weight_range * loss_range
+            self.weight_range * loss_range +
+            self.weight_blur * loss_blur
         )
         return total_loss
 
@@ -175,6 +237,7 @@ class WeightedCombinedLoss(nn.Module):
         self.avg_loss_edge_aware = 0
         self.avg_loss_var = 0
         self.avg_loss_range = 0
+        self.avg_loss_blur = 0
         self.steps = 0
 
     def get_avg_losses(self):
@@ -184,11 +247,12 @@ class WeightedCombinedLoss(nn.Module):
                 self.avg_loss_l1/self.steps,
                 self.avg_loss_edge_aware/self.steps,
                 self.avg_loss_var/self.steps,
-                self.avg_loss_range/self.steps
+                self.avg_loss_range/self.steps,
+                self.avg_loss_blur/self.steps
                )
 
     def get_dict(self, data_idx):
-        loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range = self.get_avg_losses()
+        loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range, loss_blur = self.get_avg_losses()
         return {
                 f"{data_idx}_loss silog": loss_silog, 
                 f"{data_idx}_loss grad": loss_grad, 
@@ -197,34 +261,61 @@ class WeightedCombinedLoss(nn.Module):
                 f"{data_idx}_loss edge aware": loss_edge_aware,
                 f"{data_idx}_loss var": loss_var,
                 f"{data_idx}_loss range": loss_range,
+                f"{data_idx}_loss blur": loss_blur,
                 f"{data_idx}_weight loss silog": self.weight_silog, 
                 f"{data_idx}_weight loss grad": self.weight_grad,
                 f"{data_idx}_weight loss ssim": self.weight_ssim,
                 f"{data_idx}_weight loss L1": self.weight_l1,
                 f"{data_idx}_weight loss edge aware": self.weight_edge_aware,
                 f"{data_idx}_weight loss var": self.weight_var,
-                f"{data_idx}_weight loss range": self.weight_range
+                f"{data_idx}_weight loss range": self.weight_range,
+                f"{data_idx}_weight loss blur": self.weight_blur
                }
 
-def calc_weight_map(target):
-    values, counts = torch.unique(target.flatten(), return_counts=True)
-    all_counts = counts.sum().float()
-    
-    # weight_factor = 2.0
-    # weights = {values[idx].item(): max(torch.exp( ( (1-(counts[idx].item()/all_counts))) *weight_factor), 0.0001) for idx in range(len(values))}
-    
-    weights = {values[idx].item(): 255.0/counts[idx].item() for idx in range(len(values))}
+    def clean(self):
+        if self.save_dir is not None and self.save_dir.startswith("./precomputed_weight_maps"):
+            shutil.rmtree(self.save_dir)
 
-    # print(f"Weights:")
-    # for cur_value, cur_counts in list(sorted(weights.items(), key=lambda x:x[0])):
-    #     print('    - '+str(round(cur_value, 4))+': '+str(cur_counts.item()))
+def calc_weight_map(target, given_save_dir="./", data_idx=None, should_save=False, first_pass=False):
+    if first_pass and should_save:
+        save_dir = "./precomputed_weight_maps"
+        os.makedirs(save_dir, exist_ok=True)
 
-    weights_map = torch.zeros_like(target, dtype=torch.float)
-    for cur_value in values:
-        cur_value = cur_value.item()
-        weights_map[target == cur_value] = weights[cur_value]
+        save_sub_dir_number = np.random.randint(0, 1000000)
+        save_base_dir = os.path.join(save_dir, f"set_{save_sub_dir_number}")
 
-    return weights_map
+        while os.path.exists(save_base_dir):
+            save_sub_dir_number = np.random.randint(0, 1000000)
+            save_base_dir = os.path.join(save_dir, f"set_{save_sub_dir_number}")
+        os.makedirs(save_base_dir, exist_ok=True)
+    else:
+        save_base_dir = given_save_dir
+    file_path = os.path.join(save_base_dir, f"weight_map_{data_idx}.npy")
+
+    if data_idx is not None and os.path.exists(file_path):
+        weights_map = torch.from_numpy(np.load(file_path)).to(target.device)
+    else:
+        values, counts = torch.unique(target.flatten(), return_counts=True)
+        all_counts = counts.sum().float()
+        
+        # weight_factor = 2.0
+        # weights = {values[idx].item(): max(torch.exp( ( (1-(counts[idx].item()/all_counts))) *weight_factor), 0.0001) for idx in range(len(values))}
+        
+        weights = {values[idx].item(): 255.0/counts[idx].item() for idx in range(len(values))}
+
+        # print(f"Weights:")
+        # for cur_value, cur_counts in list(sorted(weights.items(), key=lambda x:x[0])):
+        #     print('    - '+str(round(cur_value, 4))+': '+str(cur_counts.item()))
+
+        weights_map = torch.zeros_like(target, dtype=torch.float)
+        for cur_value in values:
+            cur_value = cur_value.item()
+            weights_map[target == cur_value] = weights[cur_value]
+
+        if should_save:
+            np.save(file_path, weights_map.cpu().numpy())
+
+    return weights_map, save_base_dir
 
 class Pix2PixCFOSubModel(BaseModel):
     """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
@@ -304,6 +395,7 @@ class Pix2PixCFOSubModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            self.first_loss_pass = True
 
         """
         First Reflexion Channel Experiments:
@@ -352,7 +444,7 @@ class Pix2PixCFOSubModel(BaseModel):
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
-        # ! This will be not used, old code which attributes might will be accessed from the pipeline
+        self.cur_idx = input[2]
         self.real_A = input[0].to(self.device)
         # Fix real image size 512x512 > 256x256
         self.real_A = F.interpolate(self.real_A, size=(256, 256), mode='bilinear', align_corners=False)
@@ -402,6 +494,10 @@ class Pix2PixCFOSubModel(BaseModel):
             target_ = target_.unsqueeze(0)
 
         return input_, target_
+
+    def clean(self):
+        if self.use_cfg_loss:
+            self.combined_loss.clean()
 
     def __call__(self, input_):
         # print(f"Input type: {type(input_)}, Input Shape: {input_.shape}")
@@ -510,7 +606,8 @@ class Pix2PixCFOSubModel(BaseModel):
                 weight_map = None
             else:
                 weight_map = torch.ones_like(self.real_B)
-            self.loss_second = self.combined_loss(pred_, target_, weight_map=weight_map)  # torch.full(self.real_B.cpu().detach().shape, 1.0)) # (self.real_B > 0).astype(np.uint8) * 255)
+            self.loss_second = self.combined_loss(pred_, target_, weight_map=weight_map, data_idx=self.cur_idx, should_save=True, first_pass=self.first_loss_pass)  # torch.full(self.real_B.cpu().detach().shape, 1.0)) # (self.real_B > 0).astype(np.uint8) * 255)
+            self.first_loss_pass = False
         else:
             self.loss_second = self.criterionL1(pred_, target_)
 

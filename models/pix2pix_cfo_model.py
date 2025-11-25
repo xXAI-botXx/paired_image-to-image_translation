@@ -185,6 +185,10 @@ class Pix2PixCFOModel(BaseModel):
         new_epoch = self.current_epoch != epoch
         self.current_epoch = epoch
 
+    def clean(self):
+        self.base_model.clean()
+        self.complex_model.clean()
+
     def forward(self, model_idx=0):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.forward_and_return(model_idx=model_idx)

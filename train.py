@@ -169,6 +169,9 @@ if __name__ == '__main__':
     if opt.use_val_dataset:
         save_results(opt.out_val_results, val_results)
 
+    if opt.model == "pix2pix_cfo":
+        model.clean()
+
     print("\nTrain successfull finished.")
 
 
