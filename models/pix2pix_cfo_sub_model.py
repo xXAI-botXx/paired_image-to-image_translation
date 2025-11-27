@@ -352,6 +352,8 @@ class Pix2PixCFOSubModel(BaseModel):
             parser.add_argument('--wgangp', action='store_true', help='Use WGAN-GP (loss modification)')
             parser.add_argument('--use_cfg_loss', action='store_true', help='Whether to use a special complex focus only loss.')
             parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
+        parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
+        parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
 
         return parser
 
@@ -397,6 +399,9 @@ class Pix2PixCFOSubModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
             self.first_loss_pass = True
 
+            self.use_cfg_loss = opt.use_cfg_loss
+            self.calc_weight_map_for_cfg_loss = opt.calc_weight_map_for_cfg_loss
+
         """
         First Reflexion Channel Experiments:
         self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
@@ -417,21 +422,21 @@ class Pix2PixCFOSubModel(BaseModel):
                                                         weight_edge_aware=0.0,
                                                         weight_l1=1.0,
                                                         weight_var=0.0,
-                                                        weight_range=0.0)
+                                                        weight_range=0.0,
+                                                        weight_blur=0.0)
         else:
             self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
                                                         weight_silog=0.0, 
-                                                        weight_grad=5.0, 
-                                                        weight_ssim=10.0,
-                                                        weight_edge_aware=5.0,
-                                                        weight_l1=10.0,
-                                                        weight_var=0.0,
-                                                        weight_range=0.0)
+                                                        weight_grad=0.0, 
+                                                        weight_ssim=100.0,
+                                                        weight_edge_aware=0.0,
+                                                        weight_l1=100.0,
+                                                        weight_var=1.0,
+                                                        weight_range=1.0,
+                                                        weight_blur=10.0)
         self.is_base_model = is_base_model
         
         self.lambda_GAN = 1.0
-        self.use_cfg_loss = opt.use_cfg_loss
-        self.calc_weight_map_for_cfg_loss = opt.calc_weight_map_for_cfg_loss
         self.epochs_with_gan = 0
         self.forward_passes = 0
         self.current_epoch = 0
@@ -445,12 +450,18 @@ class Pix2PixCFOSubModel(BaseModel):
         The option 'direction' can be used to swap images in domain A and domain B.
         """
         self.cur_idx = input[2]
-        self.real_A = input[0].to(self.device)
+        if input[0].device != self.device:
+            self.real_A = input[0].to(self.device)
+        else:
+            self.real_A = input[0]
         # Fix real image size 512x512 > 256x256
         self.real_A = F.interpolate(self.real_A, size=(256, 256), mode='bilinear', align_corners=False)
         # self.real_A = self.real_A.squeeze(0)
 
-        self.real_B = input[1].to(self.device)
+        if input[1].device != self.device:
+            self.real_B = input[1].to(self.device)
+        else:
+            self.real_B = input[1]
         # self.real_B = self.real_B.unsqueeze(0)
         
         self.image_names_dict = OrderedDict()
@@ -479,7 +490,8 @@ class Pix2PixCFOSubModel(BaseModel):
             self.lambda_GAN = min(epoch * 10.0, 200)
 
     def preprocess_data(self, input_, target_):
-        input_ = input_.to(self.device)
+        if input_.device != self.device:
+            input_ = input_.to(self.device)
 
         # Make sure we have shape: [B, C, H, W]
         if input_.dim() == 3:
@@ -488,7 +500,8 @@ class Pix2PixCFOSubModel(BaseModel):
         # Fix real image size 512x512 > 256x256
         input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
 
-        target_ = target_.to(self.device)
+        if target_.device != self.device:
+            target_ = target_.to(self.device)
         # Make sure we have shape: [B, C, H, W]
         if target_.dim() == 3:
             target_ = target_.unsqueeze(0)
@@ -503,7 +516,8 @@ class Pix2PixCFOSubModel(BaseModel):
         # print(f"Input type: {type(input_)}, Input Shape: {input_.shape}")
         # preprocessing
         input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
-        input_ = input_.to(self.device)
+        if input_.device != self.device:
+            input_ = input_.to(self.device)
         # input_ = input_.unsqueeze(0)
 
         # prediction

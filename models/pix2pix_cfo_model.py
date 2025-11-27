@@ -74,7 +74,8 @@ class Pix2PixCFOModel(BaseModel):
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--use_cfg_loss', action='store_true', help='Whether to use a special complex focus only loss.')
             parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
-            # parser.add_argument("--variation", help="Dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined")
+        parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
+        parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
 
         return parser
 
@@ -85,8 +86,12 @@ class Pix2PixCFOModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         super().__init__(opt)
+        self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY = opt.reducing_cpu_bottleneck_over_gpu_memory
+        self.USE_FUSION_MODEL = opt.using_fusion_head # if hasattr(opt, 'using_fusion_head') else False
         self.opt = opt
         self.isTrain = opt.isTrain
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         base_opt = deepcopy(opt)
         base_opt.use_cfg_loss = False
@@ -103,6 +108,8 @@ class Pix2PixCFOModel(BaseModel):
             self.netcomplex_model_d = self.complex_model.netD
 
         self.fusion_head = self.netfusion_head = FusionHead(input_channels=2)
+        if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+            self.fusion_head = self.fusion_head.to(self.device)
 
         if self.isTrain:
             self.optimizers = [*self.base_model.optimizers, *self.complex_model.optimizers, self.fusion_head.optimizer]
@@ -140,6 +147,17 @@ class Pix2PixCFOModel(BaseModel):
         The option 'direction' can be used to swap images in domain A and domain B.
         """
         if self.isTrain:
+            # move to GPU if flag is set
+            if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                # input_[0][0] = to_device(input_[0][0], self.device)
+                # input_[0][1] = to_device(input_[0][1], self.device)
+                # input_[1][0] = to_device(input_[1][0], self.device)
+                # input_[1][1] = to_device(input_[1][1], self.device)
+                input_ = ((to_device(input_[0][0], self.device), to_device(input_[0][1], self.device)), \
+                          (to_device(input_[1][0], self.device), to_device(input_[1][1], self.device)), \
+                          (input_[2][0], input_[2][1]), \
+                          input_[3])
+
             (input_base_inputs, input_base_targets), \
             (input_complex_inputs, input_complex_targets), \
             (_, _), \
@@ -148,13 +166,20 @@ class Pix2PixCFOModel(BaseModel):
             self.current_data = input_
 
             input_ = [input_base_inputs, input_base_targets, idx]
+            input_complex = [input_complex_inputs, input_complex_targets, idx]
 
             self.base_model.set_input(input_)
-            self.complex_model.set_input([input_complex_inputs, input_complex_targets, idx])
+            self.complex_model.set_input(input_complex)
         else:
             input_ = [input_[0] if input_[0].ndim == 4 else input_[0].unsqueeze(0), \
                       input_[1] if input_[1].ndim == 4 else input_[1].unsqueeze(0), \
                       input_[2]]
+            
+            # move to GPU if flag is set
+            if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                input_[0] = to_device(input_[0], self.device)
+                input_[1] = to_device(input_[1], self.device)
+
             self.current_data = input_
             # input_ = [inputs, targets, idx]
 
@@ -194,7 +219,12 @@ class Pix2PixCFOModel(BaseModel):
         self.forward_and_return(model_idx=model_idx)
 
     def forward_and_return(self, model_idx=0, should_take_last=False):
-        """Run forward pass and returns the output"""
+        """
+        Run forward pass and returns the output
+        
+        Have to choose between CPU bottleneck (moving dataets between devices)
+        or GPU memory bottleneck (keeping datasets on GPU).
+        """
         
         if self.isTrain:
             # (train_base_inputs, train_base_targets), \
@@ -218,17 +248,23 @@ class Pix2PixCFOModel(BaseModel):
                 (val_complex_inputs, val_complex_targets), \
                 (val_fusion_inputs, val_fusion_targets), idx = self.current_data
 
-                base_data = (to_device(val_base_inputs), to_device(val_base_targets))
+                if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                    base_data = (val_base_inputs, val_base_targets)
+                else:
+                    base_data = (to_device(val_base_inputs, self.device), to_device(val_base_targets, self.device))
                 base_pred = self.base_model.forward_and_return(*base_data)
                 base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
-                base_data[0].cpu().detach()
-                base_data[1].cpu().detach()
+                # base_data[0].cpu().detach()
+                # base_data[1].cpu().detach()
 
-                complex_data = (to_device(val_complex_inputs), to_device(val_complex_targets))
+                if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                    complex_data = (val_complex_inputs, val_complex_targets)
+                else:
+                    complex_data = (to_device(val_complex_inputs, self.device), to_device(val_complex_targets, self.device))
                 complex_pred = self.complex_model.forward_and_return(*complex_data)
                 complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
-                complex_data[0].cpu().detach()
-                complex_data[1].cpu().detach()
+                # complex_data[0].cpu().detach()
+                # complex_data[1].cpu().detach()
                 
                 combined = torch.cat([base_pred, complex_pred], dim=1)
                 pred = self.fusion_head(combined)
@@ -240,32 +276,45 @@ class Pix2PixCFOModel(BaseModel):
                 (train_fusion_inputs, train_fusion_targets), idx = self.current_data
 
                 if model_idx == 0:
-                    base_data = (to_device(train_base_inputs), to_device(train_base_targets))
+                    if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        base_data = (train_base_inputs, train_base_targets)
+                    else:
+                        base_data = (to_device(train_base_inputs, self.device), to_device(train_base_targets, self.device))
                     pred = self.base_model.forward_and_return(base_data[0], base_data[1])
                     pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
-                    base_data[0].cpu().detach()
-                    base_data[1].cpu().detach()
+                    # base_data[0].cpu().detach()
+                    # base_data[1].cpu().detach()
                 elif model_idx == 1:
-                    complex_data = (to_device(train_complex_inputs), to_device(train_complex_targets))
+                    if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        complex_data = (train_complex_inputs, train_complex_targets)
+                    else:
+                        complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
                     pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
                     pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
-                    complex_data[0].cpu().detach()
-                    complex_data[1].cpu().detach()
+                    # complex_data[0].cpu().detach()
+                    # complex_data[1].cpu().detach()
                 else:
-                    base_data = (to_device(train_base_inputs), to_device(train_base_targets))
+                    if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        base_data = (train_base_inputs, train_base_targets)
+                    else:
+                        base_data = (to_device(train_base_inputs, self.device), to_device(train_base_targets, self.device))
                     base_pred = self.base_model.forward_and_return(base_data[0], base_data[1])
                     base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
-                    base_data[0].cpu().detach()
-                    base_data[1].cpu().detach()
+                    # base_data[0].cpu().detach()
+                    # base_data[1].cpu().detach()
 
-                    complex_data = (to_device(train_complex_inputs), to_device(train_complex_targets))
+                    if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        complex_data = (train_complex_inputs, train_complex_targets)
+                    else:
+                        complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
                     complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
                     complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
-                    complex_data[0].cpu().detach()
-                    complex_data[1].cpu().detach()
+                    # complex_data[0].cpu().detach()
+                    # complex_data[1].cpu().detach()
                     
                     combined = torch.cat([base_pred, complex_pred], dim=1)
-                    self.fusion_head = self.fusion_head.to(combined.device)
+                    if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        self.fusion_head = self.fusion_head.to(combined.device)
                     pred = self.fusion_head(combined)
                     if len(pred.shape) == 4:
                         pred = pred.squeeze(1)
@@ -274,13 +323,18 @@ class Pix2PixCFOModel(BaseModel):
             base_pred = self.base_model(self.real_A)
             complex_pred = self.complex_model(self.real_A)
             
-            # combined = torch.cat([base_pred, complex_pred], dim=1)
-            # pred = self.fusion_head(combined)
-            # formular:
-            #   complex = (target - base) * -2
-            #   complex*(-0.5) = target - base
-            #   target = (complex*(-0.5)) + base
-            pred = (complex_pred*(-0.5)) + base_pred
+            if self.USE_FUSION_MODEL:
+                base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
+                complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
+                combined = torch.cat([base_pred, complex_pred], dim=1)
+                pred = self.fusion_head(combined)
+            else:
+                # formular:
+                #   complex = (target - base) * -2
+                #   complex*(-0.5) = target - base
+                #   target = (complex*(-0.5)) + base
+                pred = (complex_pred*(-0.5)) + base_pred
+
             if len(pred.shape) == 4:
                 pred = pred.squeeze(1)
 
@@ -339,7 +393,7 @@ class Pix2PixCFOModel(BaseModel):
         if self.current_epoch <= self.train_pix2pix_epochs:
             # Basline
             pred_ = self.forward_and_return(model_idx=0, should_take_last=True)
-            base_data = (to_device(train_base_inputs), to_device(train_base_targets))
+            base_data = (to_device(train_base_inputs, self.device), to_device(train_base_targets, self.device))
             self.base_model.optimize_parameters(base_data[0], base_data[1], pred_)
             base_data[0].cpu().detach()
             base_data[1].cpu().detach()
@@ -347,7 +401,7 @@ class Pix2PixCFOModel(BaseModel):
 
             # Complex
             pred_ = self.forward_and_return(model_idx=1, should_take_last=True)
-            complex_data = (to_device(train_complex_inputs), to_device(train_complex_targets))
+            complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
             self.complex_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
             complex_data[0].cpu().detach()
             complex_data[1].cpu().detach()
@@ -356,7 +410,7 @@ class Pix2PixCFOModel(BaseModel):
             # Fusion
             self.fusion_head.optimizer.zero_grad()
             pred_ = self.forward_and_return(model_idx=2, should_take_last=True)
-            train_fusion_targets = to_device(train_fusion_targets)
+            train_fusion_targets = to_device(train_fusion_targets, self.device)
             self.fusion_head.backward(train_fusion_targets, pred_)
             train_fusion_targets.cpu().detach()
             self.fusion_head.optimizer.step()
@@ -366,11 +420,13 @@ class Pix2PixCFOModel(BaseModel):
         # self.adjust_image_shapes()
 
 
-def to_device(dataset):
+def to_device(dataset, device=None):
     # Input: [Tensor(), Tensor(), int]
     # if len(dataset) != 2:
     #     raise ValueError("Expected dataset to be a list of 2 values")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     if isinstance(dataset, (list, tuple)):
         return type(dataset)(item.to(device) for item in dataset)
     elif isinstance(dataset, torch.Tensor):
