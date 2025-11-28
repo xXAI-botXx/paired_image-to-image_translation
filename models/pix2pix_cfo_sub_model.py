@@ -498,7 +498,8 @@ class Pix2PixCFOSubModel(BaseModel):
             input_ = input_.unsqueeze(0)
 
         # Fix real image size 512x512 > 256x256
-        input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
+        if input_.shape[2] != 256 or input_.shape[3] != 256:
+            input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
 
         if target_.device != self.device:
             target_ = target_.to(self.device)

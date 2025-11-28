@@ -220,6 +220,8 @@ pip install tqdm
 
 -> See training parameters with `python train.py --help` (before activate caonda env: `conda activate gan`)
 
+-> Notice that you should use `--use_val_dataset` (+ `--eval_epoch_freq 3 --mse_val_function`) in order to get really the best model and does not get influenced by overfitting (validation dataset is used for the best model).
+
 -> Add your Weights & Bias API key:
 ```bash
 conda activate gan
@@ -521,6 +523,7 @@ nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_a
 
 **Removed CPU bottleneck + changed loss weighting:**
 
+<!--
 ```bash
 if is_base_model:
     self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
@@ -548,6 +551,7 @@ cd ~/src/paired_image-to-image_translation
 nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_3_only_complex_loss_weighting_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 > ./logs/pix2pix_cfo_weighted_adjusted_losses_3_only_complex_loss_weighting_loaded_weights_optimized.log 2>&1 &
 ```
 > Did not learned the complex part
+-->
 
 ```bash
 if is_base_model:
@@ -573,7 +577,92 @@ else:
 
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_3_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 > ./logs/pix2pix_cfo_weighted_adjusted_losses_3_loaded_weights_optimized.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_3_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_3_loaded_weights_optimized.log 2>&1 &
+```
+
+<!--
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                              weight_silog=0.0, 
+                                              weight_grad=0.0, 
+                                              weight_ssim=10.0,
+                                              weight_edge_aware=0.0,
+                                              weight_l1=1.0,
+                                              weight_var=1.0,
+                                              weight_range=1.0,
+                                              weight_blur=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_4_only_complex_loss_weighting_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 > ./logs/pix2pix_cfo_weighted_adjusted_losses_4_only_complex_loss_weighting_loaded_weights_optimized.log 2>&1 &
+```
+-->
+
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                              weight_silog=0.0, 
+                                              weight_grad=0.0, 
+                                              weight_ssim=10.0,
+                                              weight_edge_aware=0.0,
+                                              weight_l1=1.0,
+                                              weight_var=1.0,
+                                              weight_range=1.0,
+                                              weight_blur=0.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_4_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_4_loaded_weights_optimized.log 2>&1 &
+```
+
+
+**Residual Design (CFO) with simulated reflections:**<br>
+```bash
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                              weight_silog=0.0, 
+                                              weight_grad=0.0, 
+                                              weight_ssim=100.0,
+                                              weight_edge_aware=0.0,
+                                              weight_l1=100.0,
+                                              weight_var=1.0,
+                                              weight_range=1.0,
+                                              weight_blur=10.0)
+
+conda activate gan
+cd ~/src/paired_image-to-image_translation
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one_channel_weighted_adjusted_losses_3_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_cfo_ips_36_one_channel_weighted_adjusted_losses_3_loaded_weights_optimized.log 2>&1 &
 ```
 
 ```bash
@@ -600,36 +689,8 @@ else:
 
 conda activate gan
 cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_4_only_complex_loss_weighting_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.00005 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --calc_weight_map_for_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 > ./logs/pix2pix_cfo_weighted_adjusted_losses_4_only_complex_loss_weighting_loaded_weights_optimized.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one_channel_weighted_adjusted_losses_4_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --reflexion_channels --reflexion_steps 36 > ./logs/pix2pix_cfo_ips_36_one_channel_weighted_adjusted_losses_4_loaded_weights_optimized.log 2>&1 &
 ```
-
-```bash
-if is_base_model:
-    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
-                                                weight_silog=0.0, 
-                                                weight_grad=0.0, 
-                                                weight_ssim=0.0,
-                                                weight_edge_aware=0.0,
-                                                weight_l1=1.0,
-                                                weight_var=0.0,
-                                                weight_range=0.0,
-                                                weight_blur=0.0)
-else:
-    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
-                                              weight_silog=0.0, 
-                                              weight_grad=0.0, 
-                                              weight_ssim=10.0,
-                                              weight_edge_aware=0.0,
-                                              weight_l1=1.0,
-                                              weight_var=1.0,
-                                              weight_range=1.0,
-                                              weight_blur=0.0)
-
-conda activate gan
-cd ~/src/paired_image-to-image_translation
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_4_loaded_weights_optimized --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --use_cfg_loss --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 > ./logs/pix2pix_cfo_weighted_adjusted_losses_4_loaded_weights_optimized.log 2>&1 &
-```
-
 
 
 **Physgen with partwised simulated reflexions:**<br>

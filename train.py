@@ -132,13 +132,14 @@ if __name__ == '__main__':
                 if opt.display_id > 0:
                     visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
 
-            if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
+            # Only saves latest model if no validation dataset is used and "only best model" is not requested
+            if not (opt.save_only_best_model and opt.use_val_dataset) and total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
                 print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
                 save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
                 model.save_networks(save_suffix)
 
             iter_data_time = time.time()
-
+ 
         if opt.use_val_dataset and epoch % opt.eval_epoch_freq == 0:
             # measures MSE over the image
             for eval_func in val_functions:
@@ -152,7 +153,12 @@ if __name__ == '__main__':
                 for i, data in enumerate(val_dataset):
                     model.set_input(data)
                     pred = model.forward_and_return()
-                    gt = data["B"].to("cuda")
+                    if opt.model == "pix2pix_cfo":
+                        gt = data[2][1].to("cuda")
+                    elif opt.dataset_mode.lower() == "physgen":
+                        gt = data[1].to("cuda")
+                    else:
+                        gt = data["B"].to("cuda")
                     for eval_func in val_functions:
                         val_results[epoch][eval_func[0]] += eval_func[1](pred, gt)
                 print(f"Eval Scores of Epoch {epoch}")

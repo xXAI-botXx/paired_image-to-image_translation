@@ -254,8 +254,9 @@ class Pix2PixCFOModel(BaseModel):
                     base_data = (to_device(val_base_inputs, self.device), to_device(val_base_targets, self.device))
                 base_pred = self.base_model.forward_and_return(*base_data)
                 base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
-                # base_data[0].cpu().detach()
-                # base_data[1].cpu().detach()
+                if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                    base_data[0].cpu().detach()
+                    base_data[1].cpu().detach()
 
                 if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                     complex_data = (val_complex_inputs, val_complex_targets)
@@ -263,8 +264,9 @@ class Pix2PixCFOModel(BaseModel):
                     complex_data = (to_device(val_complex_inputs, self.device), to_device(val_complex_targets, self.device))
                 complex_pred = self.complex_model.forward_and_return(*complex_data)
                 complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
-                # complex_data[0].cpu().detach()
-                # complex_data[1].cpu().detach()
+                if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                    complex_data[0].cpu().detach()
+                    complex_data[1].cpu().detach()
                 
                 combined = torch.cat([base_pred, complex_pred], dim=1)
                 pred = self.fusion_head(combined)
@@ -282,8 +284,9 @@ class Pix2PixCFOModel(BaseModel):
                         base_data = (to_device(train_base_inputs, self.device), to_device(train_base_targets, self.device))
                     pred = self.base_model.forward_and_return(base_data[0], base_data[1])
                     pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
-                    # base_data[0].cpu().detach()
-                    # base_data[1].cpu().detach()
+                    if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        base_data[0].cpu().detach()
+                        base_data[1].cpu().detach()
                 elif model_idx == 1:
                     if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                         complex_data = (train_complex_inputs, train_complex_targets)
@@ -291,8 +294,9 @@ class Pix2PixCFOModel(BaseModel):
                         complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
                     pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
                     pred = pred if pred.dim() == 4 else pred.unsqueeze(1)
-                    # complex_data[0].cpu().detach()
-                    # complex_data[1].cpu().detach()
+                    if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        complex_data[0].cpu().detach()
+                        complex_data[1].cpu().detach()
                 else:
                     if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                         base_data = (train_base_inputs, train_base_targets)
@@ -300,8 +304,9 @@ class Pix2PixCFOModel(BaseModel):
                         base_data = (to_device(train_base_inputs, self.device), to_device(train_base_targets, self.device))
                     base_pred = self.base_model.forward_and_return(base_data[0], base_data[1])
                     base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
-                    # base_data[0].cpu().detach()
-                    # base_data[1].cpu().detach()
+                    if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        base_data[0].cpu().detach()
+                        base_data[1].cpu().detach()
 
                     if self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                         complex_data = (train_complex_inputs, train_complex_targets)
@@ -309,8 +314,9 @@ class Pix2PixCFOModel(BaseModel):
                         complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
                     complex_pred = self.complex_model.forward_and_return(complex_data[0], complex_data[1])
                     complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
-                    # complex_data[0].cpu().detach()
-                    # complex_data[1].cpu().detach()
+                    if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
+                        complex_data[0].cpu().detach()
+                        complex_data[1].cpu().detach()
                     
                     combined = torch.cat([base_pred, complex_pred], dim=1)
                     if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
