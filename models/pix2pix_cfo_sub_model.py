@@ -393,7 +393,10 @@ class Pix2PixCFOSubModel(BaseModel):
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
             self.criterionL1 = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            if is_base_model:
+                self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            else:
+                self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e+10, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
@@ -428,11 +431,11 @@ class Pix2PixCFOSubModel(BaseModel):
             self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
                                                         weight_silog=0.0, 
                                                         weight_grad=0.0, 
-                                                        weight_ssim=100.0,
+                                                        weight_ssim=1000.0,
                                                         weight_edge_aware=0.0,
-                                                        weight_l1=100.0,
-                                                        weight_var=1.0,
-                                                        weight_range=1.0,
+                                                        weight_l1=1000.0,
+                                                        weight_var=10.0,
+                                                        weight_range=10.0,
                                                         weight_blur=10.0)
         self.is_base_model = is_base_model
         
