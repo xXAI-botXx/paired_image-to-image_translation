@@ -397,7 +397,7 @@ class Pix2PixCFOSubModel(BaseModel):
             if is_base_model:
                 self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             else:
-                self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e+10, betas=(opt.beta1, 0.999))
+                self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
@@ -430,14 +430,14 @@ class Pix2PixCFOSubModel(BaseModel):
                                                         weight_blur=0.0)
             self.scale_complex_part = False
         else:
-            self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+            self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                                         weight_silog=0.0, 
                                                         weight_grad=0.0, 
                                                         weight_ssim=10.0,
                                                         weight_edge_aware=0.0,
-                                                        weight_l1=100.0,
-                                                        weight_var=0.0,
-                                                        weight_range=0.0,
+                                                        weight_l1=10.0,
+                                                        weight_var=1.0,
+                                                        weight_range=1.0,
                                                         weight_blur=0.0)
             self.scale_complex_part = opt.scale_complex_part
         self.is_base_model = is_base_model

@@ -781,6 +781,120 @@ nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_a
 ```
 
 
+Other tries:
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e+100, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=0.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=0.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_8 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_8.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e+100, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=0.0,
+                                                weight_var=10.0,
+                                                weight_range=10.0,
+                                                weight_blur=0.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_9 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_9.log 2>&1 &
+```
+
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=10.0, 
+                                                weight_grad=10.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=10.0,
+                                                weight_l1=10.0,
+                                                weight_var=10.0,
+                                                weight_range=10.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_10 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_10.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=10.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=0.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_10 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_10.log 2>&1 &
+```
+
+
+
+
 **Physgen with partwised simulated reflexions:**<br>
 All with the same settings:
 - GAN, no WGAN-GP
