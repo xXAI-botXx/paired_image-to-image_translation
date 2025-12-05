@@ -431,11 +431,11 @@ class Pix2PixCFOSubModel(BaseModel):
             self.scale_complex_part = False
         else:
             self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
-                                                        weight_silog=0.0, 
+                                                        weight_silog=1.0, 
                                                         weight_grad=0.0, 
-                                                        weight_ssim=10.0,
+                                                        weight_ssim=0.0,
                                                         weight_edge_aware=0.0,
-                                                        weight_l1=10.0,
+                                                        weight_l1=100.0,
                                                         weight_var=1.0,
                                                         weight_range=1.0,
                                                         weight_blur=0.0)
@@ -519,7 +519,7 @@ class Pix2PixCFOSubModel(BaseModel):
         if self.use_cfg_loss:
             self.combined_loss.clean()
 
-    def __call__(self, input_, should_scale):
+    def __call__(self, input_, should_scale=False):
         # print(f"Input type: {type(input_)}, Input Shape: {input_.shape}")
         # preprocessing
         input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
@@ -535,7 +535,7 @@ class Pix2PixCFOSubModel(BaseModel):
             pred = torch.clamp(pred, 0.0, 1.0)
         return pred
 
-    def forward(self, input_, target_, should_scale):
+    def forward(self, input_, target_, should_scale=False):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         input_, target_ = self.preprocess_data(input_, target_)
         self.fake_B = self.netG(input_)
