@@ -168,7 +168,7 @@ class PhysGenDataset(Dataset):
                                                 ray_thickness=1,	
                                                 img_shape=(height, width),
                                                 should_scale_rays_to_image=True,
-                                                show_only_reflections=True)
+                                                show_only_reflections=False)
             # (256, 256)
             ray_img = self.transform(ray_img)
             ray_img = ray_img.float()

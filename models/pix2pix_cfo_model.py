@@ -77,6 +77,7 @@ class Pix2PixCFOModel(BaseModel):
         parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
         parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
+        parser.add_argument('--split_by_channel', action='store_true', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
 
         return parser
 

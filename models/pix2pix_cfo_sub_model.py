@@ -355,6 +355,7 @@ class Pix2PixCFOSubModel(BaseModel):
         parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
         parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
+        parser.add_argument('--split_by_channel', action='store_true', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
 
         return parser
 
@@ -397,7 +398,7 @@ class Pix2PixCFOSubModel(BaseModel):
             if is_base_model:
                 self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             else:
-                self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999))
+                self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
@@ -405,6 +406,8 @@ class Pix2PixCFOSubModel(BaseModel):
 
             self.use_cfg_loss = opt.use_cfg_loss
             self.calc_weight_map_for_cfg_loss = opt.calc_weight_map_for_cfg_loss
+
+        self.split_by_channel = opt.split_by_channel
 
         """
         First Reflexion Channel Experiments:
@@ -430,15 +433,15 @@ class Pix2PixCFOSubModel(BaseModel):
                                                         weight_blur=0.0)
             self.scale_complex_part = False
         else:
-            self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
-                                                        weight_silog=1.0, 
+            self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                        weight_silog=0.0, 
                                                         weight_grad=0.0, 
-                                                        weight_ssim=0.0,
+                                                        weight_ssim=10.0,
                                                         weight_edge_aware=0.0,
                                                         weight_l1=100.0,
                                                         weight_var=1.0,
                                                         weight_range=1.0,
-                                                        weight_blur=0.0)
+                                                        weight_blur=10.0)
             self.scale_complex_part = opt.scale_complex_part
         self.is_base_model = is_base_model
         
@@ -446,6 +449,15 @@ class Pix2PixCFOSubModel(BaseModel):
         self.epochs_with_gan = 0
         self.forward_passes = 0
         self.current_epoch = 0
+
+    def separate_input_channels(self, input):
+        if self.split_by_channel and (input.dim() == 4 and input.shape[1] == 2):
+            if self.is_base_model:
+                input = input[:, 0:1, :, :]  # take only first channel for base model
+            else:
+                input = input[:, 1:2, :, :]  # take only second channel for complex model
+
+        return input
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -463,6 +475,9 @@ class Pix2PixCFOSubModel(BaseModel):
         # Fix real image size 512x512 > 256x256
         self.real_A = F.interpolate(self.real_A, size=(256, 256), mode='bilinear', align_corners=False)
         # self.real_A = self.real_A.squeeze(0)
+
+        # take only one of the channels
+        self.real_A = self.separate_input_channels(self.real_A)
 
         if input[1].device != self.device:
             self.real_B = input[1].to(self.device)
@@ -507,6 +522,9 @@ class Pix2PixCFOSubModel(BaseModel):
         if input_.shape[2] != 256 or input_.shape[3] != 256:
             input_ = F.interpolate(input_, size=(256, 256), mode='bilinear', align_corners=False)
 
+        # take only one of the channels
+        input_ = self.separate_input_channels(input_)
+
         if target_.device != self.device:
             target_ = target_.to(self.device)
         # Make sure we have shape: [B, C, H, W]
@@ -526,6 +544,9 @@ class Pix2PixCFOSubModel(BaseModel):
         if input_.device != self.device:
             input_ = input_.to(self.device)
         # input_ = input_.unsqueeze(0)
+
+        # take only one of the channels
+        input_ = self.separate_input_channels(input_)
 
         # prediction
         pred = self.netG(input_)

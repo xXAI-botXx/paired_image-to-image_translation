@@ -777,15 +777,13 @@ else:
                                                 weight_range=0.0,
                                                 weight_blur=0.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_7_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --scale_complex_part > ./logs/pix2pix_cfo_weighted_adjusted_losses_7_log_space.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_7_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --scale_complex_part > ./logs/pix2pix_cfo_weighted_adjusted_losses_7_log_space.log 2>&1 &
 ```
 
 
 Other tries:
 
 ```bash
-self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e+100, betas=(opt.beta1, 0.999)) increase from 10 to 100
-
 if is_base_model:
     self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
                                                 weight_silog=0.0, 
@@ -807,7 +805,7 @@ else:
                                                 weight_range=1.0,
                                                 weight_blur=0.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_8 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_8.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_8 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_8.log 2>&1 &
 ```
 
 ```bash
@@ -919,6 +917,115 @@ else:
 nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_11 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_11.log 2>&1 &
 ```
 
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=10.0, 
+                                                weight_grad=10.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=10.0,
+                                                weight_l1=0.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_adjusted_losses_12 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_adjusted_losses_12.log 2>&1 &
+```
+
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=100.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_weighted_masked_adjusted_losses_13 --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss  --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_weighted_masked_adjusted_losses_13.log 2>&1 &
+```
+
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=100.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one_channel_weighted_masked_adjusted_losses_14_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 36 --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_ips_36_one_channel_weighted_masked_adjusted_losses_14_log_space.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=100.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name pix2pix_cfo_ips_36_one_channel_weighted_masked_adjusted_losses_15_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --reflexion_channels --reflexion_steps 36 --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/pix2pix_cfo_ips_36_one_channel_weighted_masked_adjusted_losses_15_log_space.log 2>&1 &
+```
 
 
 
@@ -977,6 +1084,131 @@ post masking:
 conda activate gan
 nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_post_masked --model pix2pix --n_epochs 100 --lr 0.00001 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --input_nc 1 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --post_masked > ./logs/pix2pix_1_0_post_masked.log 2>&1 &
 ```
+
+**Last Experiments:**
+
+```bash
+conda activate gan
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel_l1_final --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_l1.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr*5e-1, betas=(opt.beta1, 0.999)) increase from 10 to 100
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space.log 2>&1 &
+```
+
+
+And only reflection as input: *NEW*
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --split_by_channel --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space_split_channels.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --split_by_channel --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
+
+if is_base_model:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.0, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=0.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=1.0,
+                                                weight_var=0.0,
+                                                weight_range=0.0,
+                                                weight_blur=0.0)
+else:
+    self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                                weight_silog=0.0, 
+                                                weight_grad=0.0, 
+                                                weight_ssim=10.0,
+                                                weight_edge_aware=0.0,
+                                                weight_l1=100.0,
+                                                weight_var=1.0,
+                                                weight_range=1.0,
+                                                weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_adjusted_losses_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --reflexion_channels --reflexion_steps 360 --split_by_channel --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_adjusted_losses_split_channels.log 2>&1 &
+```
+
+```bash
+self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_l1_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --reflexion_channels --reflexion_steps 360 --split_by_channel --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_l1_split_channels.log 2>&1 &
+```
+
+
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`
 
