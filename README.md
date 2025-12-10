@@ -1087,6 +1087,7 @@ nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_post_
 
 **Last Experiments:**
 
+(startet)
 ```bash
 conda activate gan
 nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel_l1_final --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_l1.log 2>&1 &

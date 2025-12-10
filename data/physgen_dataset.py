@@ -111,11 +111,21 @@ class PhysGenDataset(BaseDataset):
                                                     reflexion_order=3,	
                                                     should_scale_rays=True,	
                                                     should_scale_img=False)
+            
+            # get max value of input image, for ray coloring
+            if isinstance(input_img, torch.Tensor):
+                raw_max = input_img.detach().cpu().numpy().max()
+            elif isinstance(input_img, np.ndarray):
+                raw_max = input_img.max()
+            else:  
+                raw_max = np.array(input_img).max()
+            max_val = 1.0 if raw_max <= 1.0 else 255.0
+            
             ray_img = ips.ray_tracing.draw_rays(rays,	
                                                 detail_draw=False,	
                                                 output_format='channels' if self.reflexions_as_channels else 'single_image',	
                                                 img_background=None,	
-                                                ray_value=[50, 100, 255],	
+                                                ray_value=[int(max_val*0.3), int(max_val*0.5), int(max_val*0.8), int(max_val)],	
                                                 ray_thickness=1,	
                                                 img_shape=(512, 512),
                                                 should_scale_rays_to_image=True,

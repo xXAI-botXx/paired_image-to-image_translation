@@ -84,9 +84,11 @@ if __name__ == '__main__':
             val_dataset = create_dataset(opt, is_validation_data=True)
     else:
         loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
+        # print(loaded_dataset.keys())
+        #  -> 'train', 'test', 'validation'
         dataset = PhysGenDataset(dataset=loaded_dataset["train"], opt=opt, mode="train")
         if opt.use_val_dataset:
-            val_dataset = PhysGenDataset(dataset=loaded_dataset["eval"], opt=opt, mode="validation")
+            val_dataset = PhysGenDataset(dataset=loaded_dataset["validation"], opt=opt, mode="validation")
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
 
