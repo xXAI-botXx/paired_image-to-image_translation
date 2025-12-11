@@ -1134,12 +1134,12 @@ Only Complex with Pix2Pix -> seperate testing
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
-                                            weight_ssim=10.0,
+                                            weight_ssim=0.1,
                                             weight_edge_aware=0.0,
-                                            weight_l1=100.0,
-                                            weight_var=1.0,
-                                            weight_range=1.0,
-                                            weight_blur=10.0)
+                                            weight_l1=1.0,
+                                            weight_var=0.01,
+                                            weight_range=0.01,
+                                            weight_blur=0.1)
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_baseinput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type base_simulation --output_type complex_only --reflexion_channels --reflexion_steps 360 --only_reflexions --input_nc 1 --output_nc 1 --load_size 64 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_baseinput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
 ```
@@ -1148,12 +1148,12 @@ Comparison run: base + reflexions
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
-                                            weight_ssim=10.0,
+                                            weight_ssim=0.1,
                                             weight_edge_aware=0.0,
-                                            weight_l1=100.0,
-                                            weight_var=1.0,
-                                            weight_range=1.0,
-                                            weight_blur=10.0)
+                                            weight_l1=1.0,
+                                            weight_var=0.01,
+                                            weight_range=0.01,
+                                            weight_blur=0.1)
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type base_simulation --output_type complex_only --reflexion_channels --reflexion_steps 360 --input_nc 2 --output_nc 1 --load_size 64 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses.log 2>&1 &
 ```
@@ -1162,12 +1162,12 @@ Comparison Run 2: (without reflexiosn at all)
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
-                                            weight_ssim=10.0,
+                                            weight_ssim=0.1,
                                             weight_edge_aware=0.0,
-                                            weight_l1=100.0,
-                                            weight_var=1.0,
-                                            weight_range=1.0,
-                                            weight_blur=10.0)
+                                            weight_l1=1.0,
+                                            weight_var=0.01,
+                                            weight_range=0.01,
+                                            weight_blur=0.1)
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type base_simulation --output_type complex_only --input_nc 1 --output_nc 1 --load_size 64 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses.log 2>&1 &
 ```

@@ -453,12 +453,12 @@ class Pix2PixModel(BaseModel):
                                             silog_lambda=0.5, 
                                             weight_silog=0.0, 
                                             weight_grad=0.0, 
-                                            weight_ssim=10.0,
+                                            weight_ssim=0.1,
                                             weight_edge_aware=0.0,
-                                            weight_l1=100.0,
-                                            weight_var=1.0,
-                                            weight_range=1.0,
-                                            weight_blur=10.0)
+                                            weight_l1=1.0,
+                                            weight_var=0.01,
+                                            weight_range=0.01,
+                                            weight_blur=0.1)
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
