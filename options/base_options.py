@@ -57,6 +57,14 @@ class BaseOptions():
         # wandb parameters
         parser.add_argument('--use_wandb', action='store_true', help='if specified, then init wandb logging')
         parser.add_argument('--wandb_project_name', type=str, default='CycleGAN-and-pix2pix', help='specify wandb project name')
+        # # dataset physgen
+        # parser.add_argument('--variation', type=str, default="sound_baseline", help='Decides which dataset to load: sound_baseline, sound_reflection, sound_diffraction, sound_combined.')
+        # parser.add_argument('--input_type', type=str, default="osm", help='Decides which input type is used -> osm or base_simulation.')
+        # parser.add_argument('--output_type', type=str, default="standard", help='Decides which output type is used -> standard or complex_only.')
+        # parser.add_argument('--reflexion_channels', action='store_true', help='Whether to add channels with reflexion traces.')
+        # parser.add_argument('--reflexion_steps', type=int, default=36, help='Amount of reflexion beams.')
+        # parser.add_argument('--reflexions_as_channels', action='store_true', help='Whether to add channels with reflexion traces.')
+        
         self.initialized = True
         return parser
 

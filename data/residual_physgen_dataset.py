@@ -1,7 +1,7 @@
 
 import torch
 
-from data.extended_physgen_dataset import PhysGenDataset
+from data.physgen_dataset import PhysGenDataset
 
 
 class TripleComponentDataLoader:

@@ -1126,7 +1126,7 @@ nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_
 
 And only reflection as input: *NEW*
 
-(currently running)<br>
+(CURRENTLY RUNNING)<br>
 Only Complex with Pix2Pix -> seperate testing
 ```bash
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
@@ -1139,7 +1139,7 @@ self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5,
                                             weight_range=1.0,
                                             weight_blur=10.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --use_weighted_loss --reflexion_channels --reflexion_steps 360 --only_reflexions --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_baseinput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type base_simulation --output_type complex_only --input_nc 1 --output_nc 1 --load_size 64 --use_weighted_loss --reflexion_channels --reflexion_steps 360 --only_reflexions --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_baseinput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
 ```
 Comparison run: base + reflexions
 ```bash

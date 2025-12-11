@@ -38,7 +38,8 @@ from util.visualizer import save_images
 from util import html
 
 from datasets import load_dataset
-from data.physgen_dataset import PhysGenDataset
+# from data.physgen_dataset import PhysGenDataset
+from data.extended_physgen_dataset import PhysGenDataset
 
 try:
     import wandb
@@ -57,9 +58,13 @@ if __name__ == '__main__':
     if not opt.dataset_mode.lower() == "physgen":
         dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     else:
-        loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
+        # loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
         print(f"Physgen Variation: {opt.variation}")
-        dataset = PhysGenDataset(dataset=loaded_dataset["test"], opt=opt, mode="test")
+        dataset = PhysGenDataset(variation=opt.variation, mode="test", 
+                                 input_type=opt.input_type, output_type=opt.output_type,
+                                 reflexion_channels=opt.reflexion_channels,
+                                 reflexion_steps=opt.reflexion_steps,
+                                 reflexions_as_channels=opt.reflexions_as_channels)
     
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers

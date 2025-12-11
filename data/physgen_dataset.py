@@ -6,28 +6,69 @@ See:
 - https://arxiv.org/abs/2503.05333
 - https://github.com/physicsgen/physicsgen
 """
-from data.base_dataset import BaseDataset, get_transform
-
 import os
-import shutil
-
 from PIL import Image
-import cv2
-
-# from datasets import load_dataset
-import numpy as np
-
-import torch
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torchvision import transforms
 
 from datasets import load_dataset
 
-# import prime_printer as prime 
+import numpy as np
+
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset
+# import torchvision.transforms as transforms
+from torchvision import transforms
+
 import img_phy_sim as ips
 
+from data.base_dataset import BaseDataset
+
+# def resize_to_divisible_by_14(image: np.ndarray) -> np.ndarray:
+#     """
+#     Resize an image to the next smaller width and height that is divisible by 14.
+    
+#     Parameters:
+#         image (np.ndarray): Input image (H x W x C or H x W).
+        
+#     Returns:
+#         np.ndarray: Resized image.
+#     """
+#     original_channels, original_height, original_width = image.shape[:]
+
+#     new_width = original_width - (original_width % 14)
+#     new_height = original_height - (original_height % 14)
+
+#     resized_image = cv2.resize(image, (original_channels, new_width, new_height), interpolation=cv2.INTER_AREA)
+#     return resized_image
+
+def resize_tensor_to_divisible_by_14(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Resize a tensor to the next smaller (H, W) divisible by 14.
+    
+    Args:
+        tensor (torch.Tensor): Input tensor of shape (C, H, W) or (B, C, H, W)
+    
+    Returns:
+        torch.Tensor: Resized tensor
+    """
+    if tensor.dim() == 3:
+        c, h, w = tensor.shape
+        new_h = h - (h % 14)
+        new_w = w - (w % 14)
+        return F.interpolate(tensor.unsqueeze(0), size=(new_h, new_w), mode='bilinear', align_corners=False).squeeze(0)
+    
+    elif tensor.dim() == 4:
+        b, c, h, w = tensor.shape
+        new_h = h - (h % 14)
+        new_w = w - (w % 14)
+        return F.interpolate(tensor, size=(new_h, new_w), mode='bilinear', align_corners=False)
+    
+    else:
+        raise ValueError("Tensor must be 3D (C, H, W) or 4D (B, C, H, W)")
+
+
 class PhysGenDataset(BaseDataset):
+
     @staticmethod
     def modify_commandline_options(parser, is_train):
         """Add new dataset-specific options, and rewrite default values for existing options.
@@ -39,47 +80,62 @@ class PhysGenDataset(BaseDataset):
         Returns:
             the modified parser.
         """
-        # parser.add_argument('--is_train', action='store_true', help='Whether it is train or test.')
         parser.add_argument('--variation', type=str, default="sound_baseline", help='Decides which dataset to load: sound_baseline, sound_reflection, sound_diffraction, sound_combined.')
+        parser.add_argument('--input_type', type=str, default="osm", help='Decides which input type is used -> osm or base_simulation.')
+        parser.add_argument('--output_type', type=str, default="standard", help='Decides which output type is used -> standard or complex_only.')
         parser.add_argument('--reflexion_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         parser.add_argument('--reflexion_steps', type=int, default=36, help='Amount of reflexion beams.')
         parser.add_argument('--reflexions_as_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         
+        # NOTICE: These arguments are not directly used in this dataset
+        #         this is just a definition of arguments which have to be used by calling this dataset.
+
         parser.set_defaults(max_dataset_size=float("inf"))  # specify dataset-specific default values
         return parser
 
-    def __init__(self, opt, dataset, mode):
-        """Initialize this dataset class.
+    def __init__(self, variation="sound_baseline", mode="train", input_type="osm", output_type="standard", 
+                 reflexion_channels=False, reflexion_steps=36, reflexions_as_channels=False):
+        """
+        Loads PhysGen Dataset.
 
         Parameters:
-            opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
-
-        A few things can be done here.
-        - save the options (have been done in BaseDataset)
-        - get image paths and meta information of the dataset.
-        - define the image transformation.
+        - variation : str
+            Chooses the used dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined.
+        - mode : str
+            Can be "train", "test", "validation".
+        - input_type : str
+            Defines the used Input -> "osm", "base_simulation"
+        - output_type : str
+            Defines the Output -> "standard", "complex_only"
         """
-        # save the option and dataset root
-        BaseDataset.__init__(self, opt)
-        try:
-            self.resolution_512 = opt.resolution_512
-        except AttributeError:
-            self.resolution_512 = False
-
+        self.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
         # get data
-        # self.dataset = load_dataset("mspitzna/physicsgen", name="sound_combined", trust_remote_code=True)
-        self.dataset = dataset
+        self.dataset = load_dataset("mspitzna/physicsgen", name=variation, trust_remote_code=True)
+        self.dataset = self.dataset[mode]
 
-        # define the default transform function. You can use <base_dataset.get_transform>; You can also define your custom transform function
-        # self.transform = get_transform(opt)
+        self.mode = mode
+        # self.is_train = mode == "train"
+        
+        self.input_type = input_type
+        self.output_type = output_type
+        if self.input_type == "base_simulation" or self.output_type == "complex_only":
+            self.basesimulation_dataset = load_dataset("mspitzna/physicsgen", name="sound_baseline", trust_remote_code=True)
+            self.basesimulation_dataset = self.basesimulation_dataset[mode]
+
         self.transform = transforms.Compose([
             transforms.ToTensor(),  # Converts [0,255] PIL image to [0,1] FloatTensor
         ])
-        print(f"PhysGen Dataset for {mode} got created")
-        self.mode = mode
-        self.reflexion_channels = opt.reflexion_channels
-        self.reflexion_steps = opt.reflexion_steps
-        self.reflexions_as_channels = opt.reflexions_as_channels
+        
+        self.reflexion_channels = reflexion_channels
+        self.reflexion_steps = reflexion_steps
+        self.reflexions_as_channels = reflexions_as_channels
+
+        print(f"\nPhysGen ({variation}) Dataset for {mode} got created")
+        print(f"    -> input_type = {input_type}")
+        print(f"    -> output_type = {output_type}")
+        print(f"    -> reflexion_channels = {reflexion_channels}")
+        print(f"    -> reflexion_steps = {reflexion_steps}")
+        print(f"    -> reflexions_as_channels = {reflexions_as_channels}\n")
 
     def __len__(self):
         return len(self.dataset)
@@ -88,20 +144,46 @@ class PhysGenDataset(BaseDataset):
         sample = self.dataset[idx]
         # print(sample)
         # print(sample.keys())
-        input_img = sample["osm"]  # PIL Image
+        if self.input_type == "base_simulation":
+            input_img = self.basesimulation_dataset[idx]["soundmap"]
+        else:
+            input_img = sample["osm"]  # PIL Image
         target_img = sample["soundmap"]  # PIL Image
 
-        if self.transform:
-            input_img = self.transform(input_img)
-            target_img = self.transform(target_img)
+        input_img = self.transform(input_img)
+        target_img = self.transform(target_img)
 
-        # add raytracing
+        # Fix real image size 512x512 > 256x256
+        input_img = F.interpolate(input_img.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
+        input_img = input_img.squeeze(0)
+        # target_img = target_img.unsqueeze(0)
+
+        # change size
+        # input_img = resize_tensor_to_divisible_by_14(input_img)
+        # target_img = resize_tensor_to_divisible_by_14(target_img)
+
+        # add fake rgb
+        # if input_img.shape[0] == 1:  # shape (B, 1, H, W)
+        #     input_img = input_img.repeat(3, 1, 1)  # make it (B, 3, H, W)
+
+        if self.output_type == "complex_only":
+            # base_simulation_img = resize_tensor_to_divisible_by_14(self.transform(self.basesimulation_dataset[idx]["soundmap"]))
+            base_simulation_img = self.transform(self.basesimulation_dataset[idx]["soundmap"])
+            # target_img = torch.abs(target_img[0] - base_simulation_img[0])
+            target_img = target_img[0] - base_simulation_img[0]
+            target_img = target_img.unsqueeze(0)
+            target_img *= -2
+            # target_img = torch.log1p(target_img)
+            # target_img *= 100
+
+        # reflexions
         if self.reflexion_channels:
-            # first try to find the rays
+            height, width = np.squeeze(input_img.cpu().numpy(), axis=0).shape
             ray_path = os.path.join("./rays", self.mode, str(self.reflexion_steps), f"rays_[{str(idx)}].txt")
             if os.path.exists(ray_path):
                 rays = ips.ray_tracing.open(path=ray_path)
             else:
+                raise Exception("Ray file not found. Please generate ray files before using reflexion channels.")
                 rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
                                                     img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
                                                     directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
@@ -111,7 +193,6 @@ class PhysGenDataset(BaseDataset):
                                                     reflexion_order=3,	
                                                     should_scale_rays=True,	
                                                     should_scale_img=False)
-            
             # get max value of input image, for ray coloring
             if isinstance(input_img, torch.Tensor):
                 raw_max = input_img.detach().cpu().numpy().max()
@@ -127,7 +208,7 @@ class PhysGenDataset(BaseDataset):
                                                 img_background=None,	
                                                 ray_value=[int(max_val*0.3), int(max_val*0.5), int(max_val*0.8), int(max_val)],	
                                                 ray_thickness=1,	
-                                                img_shape=(512, 512),
+                                                img_shape=(height, width),
                                                 should_scale_rays_to_image=True,
                                                 show_only_reflections=False)
             # (256, 256)
@@ -143,6 +224,7 @@ class PhysGenDataset(BaseDataset):
                 raise ValueError(f"Ray image shape {ray_img.shape} does not match input image shape {input_img.shape}.")
 
         return input_img, target_img, idx
+
 
 
 
