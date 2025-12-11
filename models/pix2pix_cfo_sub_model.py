@@ -670,6 +670,9 @@ class Pix2PixCFOSubModel(BaseModel):
         # upscale target if scaling is active
         target_ = scale(self, target_, scale_back=False)
 
+        if self.split_by_channel and input_.shape[1] != 1:
+            input_ = self.separate_input_channels(input_)
+
         # update D
         self.set_requires_grad(self.netD, True)  # enable backprop for D
         self.optimizer_D.zero_grad()     # set D's gradients to zero
