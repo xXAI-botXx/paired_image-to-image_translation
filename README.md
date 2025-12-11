@@ -1087,10 +1087,12 @@ nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_1_0_post_
 
 **Last Experiments:**
 
+Previous reflexion experiments repeated with new reflexions
+
 (early stoped -> broken)
 ```bash
 conda activate gan
-nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel_l1_final --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_l1.log 2>&1 &
+nohup python train.py --dataroot ~/data/does_not_matter --name pix2pix_ips_360_one_channel_l1_final --model pix2pix --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --input_nc 2 --output_nc 1 --gan_mode lsgan --load_size 256 --lambda_L1 100.0 --netG unet_256 --max_dataset_size 10000 --use_wandb --wandb_project_name Master-PhysGen --reflexion_channels --reflexion_steps 360 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_l1.log 2>&1 &
 ```
 
 (not started)
@@ -1118,12 +1120,62 @@ else:
                                                 weight_range=1.0,
                                                 weight_blur=10.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space.log 2>&1 &
 ```
 
 
-(started)
 And only reflection as input: *NEW*
+
+(currently running)<br>
+Only Complex with Pix2Pix -> seperate testing
+```bash
+self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                            weight_silog=0.0, 
+                                            weight_grad=0.0, 
+                                            weight_ssim=10.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_var=1.0,
+                                            weight_range=1.0,
+                                            weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --use_weighted_loss --reflexion_channels --reflexion_steps 360 --only_reflexions --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
+```
+Comparison run: base + reflexions
+```bash
+self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                            weight_silog=0.0, 
+                                            weight_grad=0.0, 
+                                            weight_ssim=10.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_var=1.0,
+                                            weight_range=1.0,
+                                            weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses --model pix2pix --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 2 --output_nc 1 --load_size 64 --use_weighted_loss --reflexion_channels --reflexion_steps 360 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses.log 2>&1 &
+```
+Comparison Run 2: (without reflexiosn at all)
+```bash
+self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
+                                            weight_silog=0.0, 
+                                            weight_grad=0.0, 
+                                            weight_ssim=10.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_var=1.0,
+                                            weight_range=1.0,
+                                            weight_blur=10.0)
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses --model pix2pix --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_ips_360_one_channel_weighted_masked_adjusted_losses.log 2>&1 &
+```
+
+FIXME -> Try best of the 3 above experiments with WGAN-GP?
+
+FIXME -> if one of them is very successfull -> advance the CFO class so that you can give the path to the checkpoint and it will automatically load the checkpoint of a submodel inside of the model
+
+
+CFO Model
 ```bash
 self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
 
@@ -1148,7 +1200,7 @@ else:
                                                 weight_range=1.0,
                                                 weight_blur=10.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --split_by_channel --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space_split_channels.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space_split_channels --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --only_reflexions --scale_complex_part --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_log_space_split_channels.log 2>&1 &
 ```
 
 ```bash
@@ -1175,7 +1227,7 @@ else:
                                                 weight_range=1.0,
                                                 weight_blur=10.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --split_by_channel --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --calc_weight_map_for_cfg_loss --reflexion_channels --reflexion_steps 360 --only_reflexions --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
 ```
 
 ```bash
@@ -1202,15 +1254,19 @@ else:
                                                 weight_range=1.0,
                                                 weight_blur=10.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_adjusted_losses_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --reflexion_channels --reflexion_steps 360 --split_by_channel --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_adjusted_losses_split_channels.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_weighted_adjusted_losses_split_channels --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --use_cfg_loss --reflexion_channels --reflexion_steps 360 --only_reflexions --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_weighted_adjusted_losses_split_channels.log 2>&1 &
 ```
 
 ```bash
 self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=0.0002, betas=(opt.beta1, 0.999))
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_l1_split_channels --model pix2pix_cfo --n_epochs 80 --lr 0.0001 --beta1 0.5 --batch_size 32 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --reflexion_channels --reflexion_steps 360 --split_by_channel --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_l1_split_channels.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_ips_360_one_channel_l1_split_channels --model pix2pix_cfo --n_epochs 50 --lr 0.0001 --beta1 0.5 --batch_size 48 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 64 --lambda_second 100.0 --reducing_cpu_bottleneck_over_gpu_memory --reflexion_channels --reflexion_steps 360 --only_reflexions --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_cfo_ips_360_one_channel_l1_split_channels.log 2>&1 &
 ```
 
+
+**GAN Mid Loss Refinement Tryout**
+
+FIXME -> --activate_gan_mid_refinement
 
 
 Killing the process: `ps aux | grep train.py | grep -v grep | awk '{print $2}' | xargs kill -9`

@@ -10,283 +10,6 @@ from .base_model import BaseModel
 from . import networks
 from .pix2pix_cfo_sub_model import WeightedCombinedLoss, calc_weight_map
 
-# FIXME, work as just import from sub cfo?
-#    -> yes? -> remove theese comments
-# class WeightedCombinedLoss(nn.Module):
-#     def __init__(self, 
-#                  silog_lambda=0.5, 
-#                  weight_silog=0.5, 
-#                  weight_grad=10.0, 
-#                  weight_ssim=5.0,
-#                  weight_edge_aware=10.0,
-#                  weight_l1=1.0,
-#                  weight_var=1.0,
-#                  weight_range=1.0,
-#                  weight_blur=1.0):
-#         super().__init__()
-#         self.silog_lambda = silog_lambda
-#         self.weight_silog = weight_silog
-#         self.weight_grad = weight_grad
-#         self.weight_ssim = weight_ssim
-#         self.weight_edge_aware = weight_edge_aware
-#         self.weight_l1 = weight_l1
-#         self.weight_var = weight_var
-#         self.weight_range = weight_range
-#         self.weight_blur = weight_blur
-
-#         self.avg_loss_silog = 0
-#         self.avg_loss_grad = 0
-#         self.avg_loss_ssim = 0
-#         self.avg_loss_l1 = 0
-#         self.avg_loss_edge_aware = 0
-#         self.avg_loss_var = 0
-#         self.avg_loss_range = 0
-#         self.avg_loss_blur = 0
-#         self.steps = 0
-
-#         # Instantiate SSIMLoss module
-#         self.ssim_module = kornia.losses.SSIMLoss(window_size=11, reduction='mean')
-#         # self.ssim_module = kornia.losses.MS_SSIMLoss(reduction='mean')
-
-#     def _match_batch(self, tensor, ref):
-#         """
-#         Ensure tensor.batch == ref.batch.
-#         - If tensor has batch==1 and ref has batch>1, repeat tensor along batch.
-#         - If tensor has batch>ref.batch, slice tensor to ref.batch.
-#         - Otherwise return tensor unchanged.
-#         """
-#         if tensor is None:
-#             return None
-#         if tensor.shape[0] == ref.shape[0]:
-#             return tensor
-#         if tensor.shape[0] == 1 and ref.shape[0] > 1:
-#             # repeat the single mask to match ref batch
-#             repeat_factors = [ref.shape[0]] + [1] * (tensor.ndim - 1)
-#             return tensor.repeat(*repeat_factors)
-#         # If mask batch > ref batch, take the first ref.shape[0] items (safer than erroring)
-#         return tensor[:ref.shape[0]]
-
-#     def silog_loss(self, pred, target, weight_map):
-#         eps = 1e-6
-#         pred = torch.clamp(pred, min=eps)
-#         target = torch.clamp(target, min=eps)
-        
-#         diff_log = torch.log(target) - torch.log(pred)
-#         diff_log = diff_log * weight_map
-
-#         loss = torch.sqrt(torch.mean(diff_log ** 2) -
-#                           self.silog_lambda * torch.mean(diff_log) ** 2)
-#         return loss
-
-#     def gradient_l1_loss(self, pred, target, weight_map):
-#         # Create Channel Dimension
-#         if pred.ndim == 3:
-#             pred = pred.unsqueeze(1)
-#         if target.ndim == 3:
-#             target = target.unsqueeze(1)
-#         if weight_map.ndim == 3:
-#             weight_map = weight_map.unsqueeze(1)
-
-#         # Gradient in x-direction (horizontal -> dim=3)
-#         pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]
-#         target_grad_x = target[:, :, :, 1:] - target[:, :, :, :-1]
-
-#         # Gradient in y-direction (vertical -> dim=2)
-#         pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]
-#         target_grad_y = target[:, :, 1:, :] - target[:, :, :-1, :]
-
-#         weight_x = weight_map[:, :, :, 1:] * weight_map[:, :, :, :-1]
-#         weight_y = weight_map[:, :, 1:, :] * weight_map[:, :, :-1, :]
-
-#         loss_x = torch.mean(torch.abs(pred_grad_x - target_grad_x) * weight_x)
-#         loss_y = torch.mean(torch.abs(pred_grad_y - target_grad_y) * weight_y)
-        
-#         # loss_x = F.l1_loss(pred_grad_x, target_grad_x) 
-#         # loss_y = F.l1_loss(pred_grad_y, target_grad_y)
-
-#         return loss_x + loss_y
-
-#     def ssim_loss(self, pred, target, weight_map):
-#         # SSIM returns similarity, so we subtract from 1
-#         if pred.ndim == 3:
-#             pred = pred.unsqueeze(1)
-#         if target.ndim == 3:
-#             target = target.unsqueeze(1)
-
-#         # self.ssim_module = self.ssim_module.to(pred.device)
-#         return self.ssim_module(pred, target)
-
-#     def edge_aware_loss(self, pred, target, weight_map):
-#         if pred.ndim == 3:
-#             pred = pred.unsqueeze(1)
-#         if target.ndim == 3:
-#             target = target.unsqueeze(1)
-#         if weight_map.ndim == 3:
-#             weight_map = weight_map.unsqueeze(1)
-
-#         pred_grad_x = pred[:, :, :, :-1] - pred[:, :, :, 1:]
-#         pred_grad_y = pred[:, :, :-1, :] - pred[:, :, 1:, :]
-
-#         target_grad_x = torch.mean(torch.abs(target[:, :, :, :-1] - target[:, :, :, 1:]), 1, keepdim=True)
-#         target_grad_y = torch.mean(torch.abs(target[:, :, :-1, :] - target[:, :, 1:, :]), 1, keepdim=True)
-
-#         weight_x = weight_map[:, :, :, 1:] * weight_map[:, :, :, :-1]
-#         weight_y = weight_map[:, :, 1:, :] * weight_map[:, :, :-1, :]
-
-#         pred_grad_x *= torch.exp(-target_grad_x* weight_x) 
-#         pred_grad_y *= torch.exp(-target_grad_y* weight_y)
-
-#         # return (pred_grad_y.abs().mean() + target_grad_y.abs().mean())
-#         return (pred_grad_x.abs().mean() + pred_grad_y.abs().mean())
-
-#     def l1_loss(self, pred, target, weight_map):
-#         loss = torch.abs(target - pred) * weight_map
-#         return loss.mean()
-
-#     def variance_loss(self, pred, target):
-#         pred_var = torch.var(pred)
-#         target_var = torch.var(target)
-#         return F.mse_loss(pred_var, target_var)
-    
-#     def range_loss(self, pred, target):
-#         pred_min, pred_max = torch.min(pred), torch.max(pred)
-#         target_min, target_max = torch.min(target), torch.max(target)
-        
-#         min_loss = F.mse_loss(pred_min, target_min)
-#         max_loss = F.mse_loss(pred_max, target_max)
-        
-#         return min_loss + max_loss
-
-#     def blur_loss(self, pred, target):
-#         laplacian_kernel = torch.tensor([[[[0, 1, 0],
-#                                            [1, -4, 1],
-#                                            [0, 1, 0]]]], dtype=pred.dtype, device=pred.device)
-
-#         if pred.ndim == 3:
-#             pred = pred.unsqueeze(1)
-#         if target.ndim == 3:
-#             target = target.unsqueeze(1)
-
-#         pred_lap = F.conv2d(pred, laplacian_kernel, padding=1)
-#         target_lap = F.conv2d(target, laplacian_kernel, padding=1)
-
-#         return F.l1_loss(pred_lap, target_lap)
-
-#     def blur_loss(self, pred, target):
-#         laplacian_kernel = torch.tensor([[[[0, 1, 0],
-#                                            [1, -4, 1],
-#                                            [0, 1, 0]]]], dtype=pred.dtype, device=pred.device)
-
-#         if pred.ndim == 3:
-#             pred = pred.unsqueeze(1)
-#         if target.ndim == 3:
-#             target = target.unsqueeze(1)
-
-#         pred_lap = F.conv2d(pred, laplacian_kernel, padding=1)
-#         target_lap = F.conv2d(target, laplacian_kernel, padding=1)
-
-#         return F.l1_loss(pred_lap, target_lap)
-
-#     def forward(self, pred, target, weight_map=None):
-#         if type(weight_map) == type(None):
-#             weight_map = calc_weight_map(target)
-
-#         weight_map = self._match_batch(weight_map, pred)
-
-#         loss_silog = self.silog_loss(pred, target, weight_map)
-#         loss_grad = self.gradient_l1_loss(pred, target, weight_map)
-#         loss_ssim = self.ssim_loss(pred, target, weight_map)
-#         loss_l1 = self.l1_loss(pred, target, weight_map)
-#         loss_edge_aware = self.edge_aware_loss(pred, target, weight_map)
-#         loss_var = self.variance_loss(pred, target)
-#         loss_range = self.range_loss(pred, target)
-#         loss_blur = self.blur_loss(pred, target)
-
-#         self.avg_loss_silog += loss_silog
-#         self.avg_loss_grad += loss_grad
-#         self.avg_loss_ssim += loss_ssim
-#         self.avg_loss_l1 += loss_l1
-#         self.avg_loss_edge_aware += loss_edge_aware
-#         self.avg_loss_var += loss_var
-#         self.avg_loss_range += loss_range
-#         self.avg_loss_blur += loss_blur
-#         self.steps += 1
-
-#         total_loss = (
-#             self.weight_silog * loss_silog +
-#             self.weight_grad * loss_grad +
-#             self.weight_ssim * loss_ssim +
-#             self.weight_edge_aware * loss_edge_aware +
-#             self.weight_l1 * loss_l1 +
-#             self.weight_var * loss_var +
-#             self.weight_range * loss_range +
-#             self.weight_blur * loss_blur
-#         )
-#         return total_loss
-
-#     def step(self, epoch):
-#         self.avg_loss_silog = 0
-#         self.avg_loss_grad = 0
-#         self.avg_loss_ssim = 0
-#         self.avg_loss_l1 = 0
-#         self.avg_loss_edge_aware = 0
-#         self.avg_loss_var = 0
-#         self.avg_loss_range = 0
-#         self.avg_loss_blur = 0
-#         self.steps = 0
-
-#     def get_avg_losses(self):
-#         return (self.avg_loss_silog/self.steps,
-#                 self.avg_loss_grad/self.steps,
-#                 self.avg_loss_ssim/self.steps,
-#                 self.avg_loss_l1/self.steps,
-#                 self.avg_loss_edge_aware/self.steps,
-#                 self.avg_loss_var/self.steps,
-#                 self.avg_loss_range/self.steps,
-#                 self.avg_loss_blur/self.steps
-#                )
-
-#     def get_dict(self, data_idx):
-#         loss_silog, loss_grad, loss_ssim, loss_l1, loss_edge_aware, loss_var, loss_range, loss_blur = self.get_avg_losses()
-#         return {
-#                 f"{data_idx}_loss silog": loss_silog, 
-#                 f"{data_idx}_loss grad": loss_grad, 
-#                 f"{data_idx}_loss ssim": loss_ssim,
-#                 f"{data_idx}_loss L1": loss_l1,
-#                 f"{data_idx}_loss edge aware": loss_edge_aware,
-#                 f"{data_idx}_loss var": loss_var,
-#                 f"{data_idx}_loss range": loss_range,
-#                 f"{data_idx}_loss blur": loss_blur,
-#                 f"{data_idx}_weight loss silog": self.weight_silog, 
-#                 f"{data_idx}_weight loss grad": self.weight_grad,
-#                 f"{data_idx}_weight loss ssim": self.weight_ssim,
-#                 f"{data_idx}_weight loss L1": self.weight_l1,
-#                 f"{data_idx}_weight loss edge aware": self.weight_edge_aware,
-#                 f"{data_idx}_weight loss var": self.weight_var,
-#                 f"{data_idx}_weight loss range": self.weight_range,
-#                 f"{data_idx}_weight loss blur": self.weight_blur
-#                }
-
-# def calc_weight_map(target):
-#     values, counts = torch.unique(target.flatten(), return_counts=True)
-#     all_counts = counts.sum().float()
-    
-#     # weight_factor = 2.0
-#     # weights = {values[idx].item(): max(torch.exp( ( (1-(counts[idx].item()/all_counts))) *weight_factor), 0.0001) for idx in range(len(values))}
-    
-#     weights = {values[idx].item(): 255.0/counts[idx].item() for idx in range(len(values))}
-
-#     # print(f"Weights:")
-#     # for cur_value, cur_counts in list(sorted(weights.items(), key=lambda x:x[0])):
-#     #     print('    - '+str(round(cur_value, 4))+': '+str(cur_counts.item()))
-
-#     weights_map = torch.zeros_like(target, dtype=torch.float)
-#     for cur_value in values:
-#         cur_value = cur_value.item()
-#         weights_map[target == cur_value] = weights[cur_value]
-
-#     return weights_map
-
 
 
 def masked_l1_loss(prediction, target, mask):
@@ -324,6 +47,8 @@ def shifted_mask(batch_size, height, width, device, region_size=(16, 16), epoch=
 
     return mask
 
+
+
 class Pix2PixModel(BaseModel):
     """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
 
@@ -358,6 +83,8 @@ class Pix2PixModel(BaseModel):
             parser.add_argument('--masked', action='store_true', help='Should mask with the target and threshold at 0')
             parser.add_argument('--post_masked', action='store_true', help='Should mask with the target and threshold at 50%')
             parser.add_argument('--use_weighted_loss', action='store_true', help='Should use weighted loss or standard l1-loss.')
+            parser.add_argument('--activate_gan_mid_refinement', action='store_true', help='If activated the gan will be purely used as loss at 20 to 80% of the training process.')
+        parser.add_argument('--only_reflexions', action='store_true', help='Whether to use only the reflexions as input if using reflexions.')
 
             # print("modify: default weighted_loss =", parser.get_default('use_weighted_loss'))
 
@@ -406,11 +133,19 @@ class Pix2PixModel(BaseModel):
             self.epochs = opt.n_epochs
             self.mask = shifted_mask(batch_size=opt.batch_size, height=256, width=256, device=self.device, region_size=(16, 16), epoch=0, shift_every_n_epochs=10)
             self.batch_size = opt.batch_size
+            self.activate_gan_mid_refinement = opt.activate_gan_mid_refinement
         
         self.lambda_GAN = 1.0
+        self.lambda_L1 = self.opt.lambda_L1
         self.epochs_with_gan = 0
         self.forward_passes = 0
         self.current_epoch = 0
+
+        if self.isTrain and self.activate_gan_mid_refinement:
+            self.original_lambda_GAN = self.lambda_GAN
+            self.original_lambda_L1 = self.lambda_L1
+
+        self.only_reflexions = opt.only_reflexions
 
         # pix2pix_1_0_residual_few_bui_masked_weight_loss_2
         # self.weighted_loss = WeightedCombinedLoss( 
@@ -715,15 +450,15 @@ class Pix2PixModel(BaseModel):
 
         # pix2pix reflexion channels
         self.weighted_loss = WeightedCombinedLoss( 
-                                            weight_silog=1.0, 
-                                            weight_grad=50.0, 
-                                            weight_ssim=100.0,
-                                            weight_edge_aware=50.0,
-                                            weight_l1=10.0,
-                                            weight_var=0.0,
-                                            weight_range=0.0,
-                                            weight_blur=0.0
-                                )
+                                            silog_lambda=0.5, 
+                                            weight_silog=0.0, 
+                                            weight_grad=0.0, 
+                                            weight_ssim=10.0,
+                                            weight_edge_aware=0.0,
+                                            weight_l1=100.0,
+                                            weight_var=1.0,
+                                            weight_range=1.0,
+                                            weight_blur=10.0)
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -738,6 +473,8 @@ class Pix2PixModel(BaseModel):
             # Fix real image size 512x512 > 256x256
             self.real_A = F.interpolate(self.real_A.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
             # self.real_A = self.real_A.squeeze(0)
+
+            self.real_A = self.shrink_to_second_channel(self.real_A)
 
             self.real_B = input[1].to(self.device)
             self.real_B = self.real_B.unsqueeze(0)
@@ -772,6 +509,15 @@ class Pix2PixModel(BaseModel):
             self.mask = shifted_mask(batch_size=self.batch_size, height=256, width=256, device=self.device, 
                                      region_size=(16, 16), epoch=self.current_epoch, shift_every_n_epochs=10,
                                      max_epoch=self.epochs)
+            
+        if self.activate_gan_mid_refinement:
+            if epoch > int(self.epochs*0.2) and epoch < int(self.epochs*0.8):
+                factor = 0.1 + 0.9 * (epoch - self.epochs * 0.2) / (self.epochs * 0.6)
+                self.lambda_L1 = self.original_lambda_L1 * (1 - factor)  # slowly put down
+                self.lambda_GAN = self.original_lambda_GAN * (1 + factor*4)  # GAN slightly increase
+            else:
+                self.lambda_GAN = self.original_lambda_GAN
+                self.lambda_L1 = self.original_lambda_L1
 
         # update Loss Weighting
         # if new_epoch:
@@ -859,7 +605,7 @@ class Pix2PixModel(BaseModel):
                 self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
-        self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.opt.lambda_L1
+        self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.lambda_L1
         self.loss_G.backward()
 
     def optimize_parameters(self):
@@ -874,6 +620,11 @@ class Pix2PixModel(BaseModel):
         self.optimizer_G.zero_grad()        # set G's gradients to zero
         self.backward_G()                   # calculate graidents for G
         self.optimizer_G.step()             # update G's weights
+
+    def shrink_to_second_channel(self, input):
+        if self.only_reflexions and input.shape[1] >= 2:
+            input =  input[:, 1:, :, :]
+        return input
 
 def compute_gradient_penalty(D, real_samples, fake_samples, device, lambda_gp=10.0):
     """

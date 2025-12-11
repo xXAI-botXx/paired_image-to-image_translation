@@ -355,7 +355,7 @@ class Pix2PixCFOSubModel(BaseModel):
         parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
         parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
-        parser.add_argument('--split_by_channel', action='store_true', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
+        parser.add_argument('--only_reflexions', action='store_true', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
 
         return parser
 
@@ -407,7 +407,7 @@ class Pix2PixCFOSubModel(BaseModel):
             self.use_cfg_loss = opt.use_cfg_loss
             self.calc_weight_map_for_cfg_loss = opt.calc_weight_map_for_cfg_loss
 
-        self.split_by_channel = opt.split_by_channel
+        self.only_reflexions = opt.only_reflexions
 
         """
         First Reflexion Channel Experiments:
@@ -451,7 +451,7 @@ class Pix2PixCFOSubModel(BaseModel):
         self.current_epoch = 0
 
     def separate_input_channels(self, input):
-        if self.split_by_channel and (input.dim() == 4 and input.shape[1] == 2):
+        if self.only_reflexions and (input.dim() == 4 and input.shape[1] == 2):
             if self.is_base_model:
                 input = input[:, 0:1, :, :]  # take only first channel for base model
             else:
@@ -670,7 +670,7 @@ class Pix2PixCFOSubModel(BaseModel):
         # upscale target if scaling is active
         target_ = scale(self, target_, scale_back=False)
 
-        if self.split_by_channel and input_.shape[1] != 1:
+        if self.only_reflexions and input_.shape[1] != 1:
             input_ = self.separate_input_channels(input_)
 
         # update D
