@@ -31,6 +31,11 @@ from data.physgen_dataset import PhysGenDataset
 from datasets import load_dataset
 from data.residual_physgen_dataset import TripleComponentDataLoader, create_dataloader
 
+import argparse
+import runtime_guard as run
+
+
+
 def create_val_functions(opt):
     """
     Creates a list of evaluation functions to be computed at evaluation time. The evaluation functions has each to be passed as a action store true
@@ -74,7 +79,37 @@ def save_results(out_dir, results):
     print(f"Results saved to {out_file}")
 
 if __name__ == '__main__':
-    opt = TrainOptions().parse()   # get training options
+    opt = TrainOptions().parse() 
+    # opt = server_health.add_custom_args(opt)
+
+    if opt.use_runtime_guard:
+        guard = run.RuntimeGuard(
+            make_ram_check=opt.runtime_guard_make_ram_check,
+            max_ram_usage_percentage=opt.runtime_guard_max_ram_usage_percentage,
+            make_cpu_check=opt.runtime_guard_make_cpu_check,
+            max_cpu_usage=opt.runtime_guard_max_cpu_usage,
+            make_gpu_check=opt.runtime_guard_make_gpu_check,
+            max_gpu_usage=opt.runtime_guard_max_gpu_usage,
+            make_mean_loop_time_check=opt.runtime_guard_make_mean_loop_time_check,
+            max_duration_factor_percentage=opt.runtime_guard_max_duration_factor_percentage,
+            goal_mean_loop_time=opt.runtime_guard_goal_mean_loop_time,
+            mean_loop_time_window_size=opt.runtime_guard_mean_loop_time_window_size,
+            make_watchdog_timer_check=opt.runtime_guard_make_watchdog_timer_check,
+            max_watchdog_seconds_timeout=opt.runtime_guard_max_watchdog_seconds_timeout,
+            watchdog_seconds_waittime=opt.runtime_guard_watchdog_seconds_waittime,
+            make_leak_check=opt.runtime_guard_make_leak_check,
+            max_leak_mb=opt.runtime_guard_max_leak_mb,
+            max_leak_ratio=opt.runtime_guard_max_leak_ratio,
+            should_print=opt.runtime_guard_should_print,
+            print_every_x_calls=opt.runtime_guard_print_every_x_calls,
+            should_log=opt.runtime_guard_should_log,
+            log_every_x_calls=opt.runtime_guard_log_every_x_calls,
+            warm_up_iter=opt.runtime_guard_warm_up_iter,
+            update_every_x_calls=opt.runtime_guard_update_every_x_calls,
+            hard_exit=opt.runtime_guard_hard_exit
+        )
+    else:
+        guard = run.getDummyGuard()
     
     if opt.model == "pix2pix_cfo":
         dataset, val_dataset = create_dataloader(opt)
@@ -110,6 +145,7 @@ if __name__ == '__main__':
     best_loss = 99999999
 
     for epoch in range(opt.epoch_count, opt.n_epochs + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
+        
         if opt.model == "pix2pix_cfo":
             model.set_to_train()
         
@@ -118,7 +154,9 @@ if __name__ == '__main__':
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
         model.update_learning_rate()    # update learning rates in the beginning of every epoch.
-        for i, data in tqdm(enumerate(dataset)):  # inner loop within one epoch
+        for i, data in guard(tqdm(enumerate(dataset))):  # inner loop within one epoch
+            # guard.start_loop()
+            
             iter_start_time = time.time()  # timer for computation per iteration
             if total_iters % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
@@ -142,6 +180,8 @@ if __name__ == '__main__':
                 if opt.display_id > 0:
                     visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
 
+            # guard.update()
+
             # Only saves latest model if no validation dataset is used and "only best model" is not requested
             if not (opt.save_only_best_model and opt.use_val_dataset) and total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
                 print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
@@ -150,36 +190,38 @@ if __name__ == '__main__':
 
             iter_data_time = time.time()
  
-        if opt.use_val_dataset and epoch % opt.eval_epoch_freq == 0:
-            # measures MSE over the image
-            for eval_func in val_functions:
-                val_results.setdefault(epoch, {})
-                # Set the specific eval_func[0] key to 0.0
-                val_results[epoch][eval_func[0]] = 0.0
+        with run.Pause(guard):
+            if opt.use_val_dataset and epoch % opt.eval_epoch_freq == 0:
 
-            with torch.no_grad():
-                if opt.model == "pix2pix_cfo":
-                    model.set_to_validation()
-                for i, data in enumerate(val_dataset):
-                    model.set_input(data)
-                    pred = model.forward_and_return()
-                    if opt.model == "pix2pix_cfo":
-                        gt = data[2][1].to("cuda")
-                    elif opt.dataset_mode.lower() == "physgen":
-                        gt = data[1].to("cuda")
-                    else:
-                        gt = data["B"].to("cuda")
-                    for eval_func in val_functions:
-                        val_results[epoch][eval_func[0]] += eval_func[1](pred, gt)
-                print(f"Eval Scores of Epoch {epoch}")
+                # measures MSE over the image
                 for eval_func in val_functions:
-                    val_results[epoch][eval_func[0]] /= len(val_dataset)
-                    for item in val_results[epoch].items():
-                        print(f"{item[0]} : {item[1]}")
-            if val_results[epoch]['mse'] < best_loss:              # cache our model every <save_epoch_freq> epochs
-                print('New Best Model! Epoch %d, MSE %lf' % (epoch, val_results[epoch]['mse']))
-                model.save_networks('model_best')
-                best_loss = val_results[epoch]['mse']
+                    val_results.setdefault(epoch, {})
+                    # Set the specific eval_func[0] key to 0.0
+                    val_results[epoch][eval_func[0]] = 0.0
+
+                with torch.no_grad():
+                    if opt.model == "pix2pix_cfo":
+                        model.set_to_validation()
+                    for i, data in enumerate(val_dataset):
+                        model.set_input(data)
+                        pred = model.forward_and_return()
+                        if opt.model == "pix2pix_cfo":
+                            gt = data[2][1].to("cuda")
+                        elif opt.dataset_mode.lower() == "physgen":
+                            gt = data[1].to("cuda")
+                        else:
+                            gt = data["B"].to("cuda")
+                        for eval_func in val_functions:
+                            val_results[epoch][eval_func[0]] += eval_func[1](pred, gt)
+                    print(f"Eval Scores of Epoch {epoch}")
+                    for eval_func in val_functions:
+                        val_results[epoch][eval_func[0]] /= len(val_dataset)
+                        for item in val_results[epoch].items():
+                            print(f"{item[0]} : {item[1]}")
+                if val_results[epoch]['mse'] < best_loss:              # cache our model every <save_epoch_freq> epochs
+                    print('New Best Model! Epoch %d, MSE %lf' % (epoch, val_results[epoch]['mse']))
+                    model.save_networks('model_best')
+                    best_loss = val_results[epoch]['mse']
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs, time.time() - epoch_start_time))
     
     if opt.use_val_dataset:

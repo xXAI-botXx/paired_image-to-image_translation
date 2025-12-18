@@ -1,5 +1,8 @@
 from .base_options import BaseOptions
 
+import sys
+sys.path += ["../"]
+import runtime_guard
 
 class TrainOptions(BaseOptions):
     """This class includes training options.
@@ -46,6 +49,7 @@ class TrainOptions(BaseOptions):
         # noise modelling specific parameters
         parser.add_argument('--resolution_512', action='store_true', help='if true, the used output resolution is 512, else 256', default=False)
 
+        parser = runtime_guard.add_custom_args(parser)
 
         self.isTrain = True
         return parser

@@ -78,6 +78,7 @@ class Pix2PixCFOModel(BaseModel):
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
         parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
         parser.add_argument('--split_by_channel', action='store_true', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
+        parser.add_argument('--complex_model_name', type=str, default='DO NOT LOAD', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
 
         return parser
 
@@ -138,6 +139,12 @@ class Pix2PixCFOModel(BaseModel):
             self.debug_print = True
         self.current_epoch = 0
         self.should_validate = False
+
+        # load complex model
+        self.complex_model_name = opt.complex_model_name
+        if self.complex_model_name != 'DO NOT LOAD':
+            # use loading procedure from
+            pass
             
 
     def set_input(self, input_):
