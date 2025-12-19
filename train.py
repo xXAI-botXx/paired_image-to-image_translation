@@ -32,7 +32,7 @@ from datasets import load_dataset
 from data.residual_physgen_dataset import TripleComponentDataLoader, create_dataloader
 
 import argparse
-import runtime_guard as run
+import runtime_guard as run  # now as pypi package
 
 
 
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     val_results = {} # the evaluation metric results, have the form: epoch:metric:value
     best_loss = 99999999
 
-    for epoch in range(opt.epoch_count, opt.n_epochs + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
+    for epoch in guard(range(opt.epoch_count, opt.n_epochs + 1)):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
         
         if opt.model == "pix2pix_cfo":
             model.set_to_train()
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
         model.update_learning_rate()    # update learning rates in the beginning of every epoch.
-        for i, data in guard(tqdm(enumerate(dataset))):  # inner loop within one epoch
+        for i, data in tqdm(enumerate(dataset)):  # inner loop within one epoch
             # guard.start_loop()
             
             iter_start_time = time.time()  # timer for computation per iteration
