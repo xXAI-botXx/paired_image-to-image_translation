@@ -86,6 +86,7 @@ class PhysGenDataset(BaseDataset):
         parser.add_argument('--reflexion_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         parser.add_argument('--reflexion_steps', type=int, default=36, help='Amount of reflexion beams.')
         parser.add_argument('--reflexions_as_channels', action='store_true', help='Whether to add channels with reflexion traces.')
+        parser.add_argument('--force_reflexion_computation', action='store_true', help='If set, the reflexions will get computed and not loaded.')
         
         # NOTICE: These arguments are not directly used in this dataset
         #         this is just a definition of arguments which have to be used by calling this dataset.
@@ -94,7 +95,8 @@ class PhysGenDataset(BaseDataset):
         return parser
 
     def __init__(self, variation="sound_baseline", mode="train", input_type="osm", output_type="standard", 
-                 reflexion_channels=False, reflexion_steps=36, reflexions_as_channels=False):
+                 reflexion_channels=False, reflexion_steps=36, reflexions_as_channels=False,
+                 force_reflexion_computation=False):
         """
         Loads PhysGen Dataset.
 
@@ -129,6 +131,7 @@ class PhysGenDataset(BaseDataset):
         self.reflexion_channels = reflexion_channels
         self.reflexion_steps = reflexion_steps
         self.reflexions_as_channels = reflexions_as_channels
+        self.force_reflexion_computation = force_reflexion_computation
 
         print(f"\nPhysGen ({variation}) Dataset for {mode} got created")
         print(f"    -> input_type = {input_type}")
@@ -180,10 +183,11 @@ class PhysGenDataset(BaseDataset):
         if self.reflexion_channels:
             height, width = np.squeeze(input_img.cpu().numpy(), axis=0).shape
             ray_path = os.path.join("./rays", self.mode, str(self.reflexion_steps), f"rays_[{str(idx)}].txt")
-            if os.path.exists(ray_path):
+            if os.path.exists(ray_path) and not self.force_reflexion_computation:
+                raise Exception("Ray file not found. Please generate ray files before using reflexion channels.")
                 rays = ips.ray_tracing.open(path=ray_path)
             else:
-                raise Exception("Ray file not found. Please generate ray files before using reflexion channels.")
+                # raise Exception("Ray file not found. Please generate ray files before using reflexion channels.")
                 rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
                                                     img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
                                                     directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
