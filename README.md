@@ -1139,44 +1139,48 @@ Only Complex with Pix2Pix -> seperate testing
 ```bash
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                             weight_silog=0.0, 
-                                            weight_grad=0.0, 
-                                            weight_ssim=0.1,
+                                            weight_grad=1.0, 
+                                            weight_ssim=0.3,
                                             weight_edge_aware=0.0,
-                                            weight_l1=1.0,
-                                            weight_var=0.01,
-                                            weight_range=0.01,
-                                            weight_blur=0.1)
+                                            weight_l1=0.5,
+                                            weight_var=0.1,
+                                            weight_range=0.00,
+                                            weight_blur=0.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 360 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_make_cpu_check --runtime_guard_max_cpu_usage 0.9 --runtime_guard_make_gpu_check --runtime_guard_max_gpu_usage 0.9 --runtime_guard_make_mean_loop_time_check --runtime_guard_max_duration_factor_percentage 3.0 --runtime_guard_mean_loop_time_window_size 2 --runtime_guard_make_leak_check --runtime_guard_max_leak_mb 200.0 --runtime_guard_max_leak_ratio 0.2 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 360 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses_split_channels.log 2>&1 &
 ```
 Comparison run: base + reflexions
 ```bash
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                             weight_silog=0.0, 
-                                            weight_grad=0.0, 
-                                            weight_ssim=0.1,
+                                            weight_grad=1.0, 
+                                            weight_ssim=0.3,
                                             weight_edge_aware=0.0,
-                                            weight_l1=1.0,
-                                            weight_var=0.01,
-                                            weight_range=0.01,
-                                            weight_blur=0.1)
+                                            weight_l1=0.5,
+                                            weight_var=0.1,
+                                            weight_range=0.00,
+                                            weight_blur=0.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 360 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_make_cpu_check --runtime_guard_max_cpu_usage 0.9 --runtime_guard_make_gpu_check --runtime_guard_max_gpu_usage 0.9 --runtime_guard_make_mean_loop_time_check --runtime_guard_max_duration_factor_percentage 3.0 --runtime_guard_mean_loop_time_window_size 2 --runtime_guard_make_leak_check --runtime_guard_max_leak_mb 200.0 --runtime_guard_max_leak_ratio 0.2 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 360 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_360_one_channel_weighted_masked_adjusted_losses.log 2>&1 &
 ```
 Comparison Run 2: (without reflexiosn at all)
 ```bash
 self.combined_loss = WeightedCombinedLoss(silog_lambda=0.5, 
                                             weight_silog=0.0, 
-                                            weight_grad=0.0, 
-                                            weight_ssim=0.1,
+                                            weight_grad=1.0, 
+                                            weight_ssim=0.3,
                                             weight_edge_aware=0.0,
-                                            weight_l1=1.0,
-                                            weight_var=0.01,
-                                            weight_range=0.01,
-                                            weight_blur=0.1)
+                                            weight_l1=0.5,
+                                            weight_var=0.1,
+                                            weight_range=0.00,
+                                            weight_blur=0.0)
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_weighted_masked_adjusted_losses --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --input_nc 1 --output_nc 1 --load_size 256 --use_weighted_loss --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_make_cpu_check --runtime_guard_max_cpu_usage 0.9 --runtime_guard_make_gpu_check --runtime_guard_max_gpu_usage 0.9 --runtime_guard_make_mean_loop_time_check --runtime_guard_max_duration_factor_percentage 3.0 --runtime_guard_mean_loop_time_window_size 2 --runtime_guard_make_leak_check --runtime_guard_max_leak_mb 200.0 --runtime_guard_max_leak_ratio 0.2 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_weighted_masked_adjusted_losses.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_weighted_masked_adjusted_losses --model pix2pix --wgangp --activate_gan_mid_refinement --lambda_GAN 1.0 --lambda_L1 100.0 --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_make_leak_check --runtime_guard_max_leak_mb 10000 --runtime_guard_max_leak_ratio 1000.0 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_weighted_masked_adjusted_losses.log 2>&1 &
 ```
+
+<!-- --print_freq 1000 --use_weighted_loss -->
+
+FIXME -> also try with basesimulation as input ('base_simulation'), if other not good and also try with the weight calculation ('--calc_weight_map_for_cfg_loss') + try without wgangp?
 
 FIXME -> Try best of the 3 above experiments with WGAN-GP?
 

@@ -34,7 +34,22 @@ from data.residual_physgen_dataset import TripleComponentDataLoader, create_data
 import argparse
 import runtime_guard as run  # now as pypi package
 
+from pympler import asizeof
 
+with open("./pympler_memory_check.txt", "w") as pympler_file:
+    pympler_file.write("")
+
+def save_object_size(objects:dict):
+    memory_txt = f"\n\n{'-'*64}"
+    for name, obj in objects.items():
+        memory_txt += f"\n{name}: {asizeof.asizeof(obj) / 1024**2} MB"
+
+    with open("./pympler_memory_check.txt", "a") as pympler_file:
+        pympler_file.write(memory_txt)
+    
+    # print("Model size:", asizeof.asizeof(model) / 1024**2, "MB")
+    # print("Dataset size:", asizeof.asizeof(dataset) / 1024**2, "MB")
+    # print("Plot data size:", asizeof.asizeof(visualizer) / 1024**2, "MB")
 
 def create_val_functions(opt):
     """
@@ -146,6 +161,9 @@ if __name__ == '__main__':
     val_results = {} # the evaluation metric results, have the form: epoch:metric:value
     best_loss = 99999999
 
+    # DEBUGGING -> makes no copies but references, right!
+    # obj_to_check = {"Model":model, "dataset":dataset, "visualizer":visualizer}
+
     for epoch in guard(range(opt.epoch_count, opt.n_epochs + 1)):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
         
         if opt.model == "pix2pix_cfo":
@@ -173,7 +191,8 @@ if __name__ == '__main__':
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
                 model.compute_visuals()
-                visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
+                with torch.no_grad():
+                    visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
 
             if total_iters % opt.print_freq == 0:    # print training losses and save logging information to the disk
                 losses = model.get_current_losses()
@@ -192,6 +211,9 @@ if __name__ == '__main__':
 
             iter_data_time = time.time()
  
+        # DEBUGGING
+        # save_object_size(obj_to_check)
+
         with run.Pause(guard):
             if opt.use_val_dataset and epoch % opt.eval_epoch_freq == 0:
 

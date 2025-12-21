@@ -207,14 +207,14 @@ class WeightedCombinedLoss(nn.Module):
         loss_range = torch.tensor(0.0, device=device) if self.weight_range == 0.0 else self.range_loss(pred, target)
         loss_blur = torch.tensor(0.0, device=device) if self.weight_blur == 0.0 else self.blur_loss(pred, target)
 
-        self.avg_loss_silog += loss_silog
-        self.avg_loss_grad += loss_grad
-        self.avg_loss_ssim += loss_ssim
-        self.avg_loss_l1 += loss_l1
-        self.avg_loss_edge_aware += loss_edge_aware
-        self.avg_loss_var += loss_var
-        self.avg_loss_range += loss_range
-        self.avg_loss_blur += loss_blur
+        self.avg_loss_silog += loss_silog.item()
+        self.avg_loss_grad += loss_grad.item()
+        self.avg_loss_ssim += loss_ssim.item()
+        self.avg_loss_l1 += loss_l1.item()
+        self.avg_loss_edge_aware += loss_edge_aware.item()
+        self.avg_loss_var += loss_var.item()
+        self.avg_loss_range += loss_range.item()
+        self.avg_loss_blur += loss_blur.item()
         self.steps += 1
 
         total_loss = (
@@ -290,9 +290,13 @@ def calc_weight_map(target, given_save_dir="./", data_idx=None, should_save=Fals
         os.makedirs(save_base_dir, exist_ok=True)
     else:
         save_base_dir = given_save_dir
-    file_path = os.path.join(save_base_dir, f"weight_map_{data_idx}.npy")
 
-    if data_idx is not None and os.path.exists(file_path):
+    if data_idx is not None:
+        file_path = os.path.join(save_base_dir, f"weight_map_{data_idx}.npy")
+    else:
+        file_path = None
+
+    if file_path is not None and os.path.exists(file_path):
         weights_map = torch.from_numpy(np.load(file_path)).to(target.device)
     else:
         values, counts = torch.unique(target.flatten(), return_counts=True)

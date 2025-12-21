@@ -81,6 +81,7 @@ class Visualizer():
         self.wandb_project_name = opt.wandb_project_name
         self.current_epoch = 0
         self.ncols = opt.display_ncols
+        self.last_processed_epoch = -1
 
         if self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
             import visdom
@@ -122,6 +123,8 @@ class Visualizer():
             epoch (int) - - the current epoch
             save_result (bool) - - if save the current results to an HTML file
         """
+        # if (self.use_html or self.use_wandb) and epoch > self.last_processed_epoch:
+            # self.last_processed_epoch = epoch
         if self.display_id > 0:  # show images in the browser using visdom
             ncols = self.ncols
             if ncols > 0:        # show all the images in one visdom panel
@@ -163,7 +166,7 @@ class Visualizer():
                                     padding=2, opts=dict(title=title + ' images'))
                     label_html = '<table>%s</table>' % label_html
                     self.vis.text(table_css + label_html, win=self.display_id + 2,
-                                  opts=dict(title=title + ' labels'))
+                                opts=dict(title=title + ' labels'))
                 except VisdomExceptionBase:
                     self.create_visdom_connections()
 
@@ -173,7 +176,7 @@ class Visualizer():
                     for label, image in visuals.items():
                         image_numpy = util.tensor2im(image)
                         self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
-                                       win=self.display_id + idx)
+                                    win=self.display_id + idx)
                         idx += 1
                 except VisdomExceptionBase:
                     self.create_visdom_connections()
@@ -208,18 +211,20 @@ class Visualizer():
 
             # update website
             webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.name, refresh=1)
-            for n in range(epoch, 0, -1):
-                webpage.add_header('epoch [%d]' % n)
-                ims, txts, links = [], [], []
+            # for n in range(epoch, 0, -1):
+            #     webpage.add_header('epoch [%d]' % n)
+            webpage.add_header(f'epoch [{epoch}]')
+            n = epoch
+            ims, txts, links = [], [], []
 
-                for label, image_numpy in visuals.items():
-                    image = image.mean(dim=1, keepdim=True)
-                    image_numpy = util.tensor2im(image)
-                    img_path = 'epoch%.3d_%s.png' % (n, label)
-                    ims.append(img_path)
-                    txts.append(label)
-                    links.append(img_path)
-                webpage.add_images(ims, txts, links, width=self.win_size)
+            for label, image_numpy in visuals.items():
+                image = image.mean(dim=1, keepdim=True)
+                image_numpy = util.tensor2im(image)
+                img_path = 'epoch%.3d_%s.png' % (n, label)
+                ims.append(img_path)
+                txts.append(label)
+                links.append(img_path)
+            webpage.add_images(ims, txts, links, width=self.win_size)
             webpage.save()
 
     def plot_current_losses(self, epoch, counter_ratio, losses):
@@ -234,6 +239,13 @@ class Visualizer():
             self.plot_data = {'X': [], 'Y': [], 'legend': list(losses.keys())}
         self.plot_data['X'].append(epoch + counter_ratio)
         self.plot_data['Y'].append([losses[k] for k in self.plot_data['legend']])
+        
+        # limit to remove a (CPU-)RAM memory leak
+        # max_len = 10
+        # if len(self.plot_data['X']) > max_len:
+        #     self.plot_data['X'] = self.plot_data['X'][-max_len:]
+        #     self.plot_data['Y'] = self.plot_data['Y'][-max_len:]
+
         try:
             self.vis.line(
                 X=np.stack([np.array(self.plot_data['X'])] * len(self.plot_data['legend']), 1),

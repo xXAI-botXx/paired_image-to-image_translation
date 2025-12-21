@@ -131,7 +131,11 @@ class BaseModel(ABC):
         visual_ret = OrderedDict()
         for name in self.visual_names:
             if isinstance(name, str):
-                visual_ret[name] = getattr(self, name)
+                v = getattr(self, name)
+                if torch.is_tensor(v):
+                    visual_ret[name] = v.detach()
+                else:
+                    visual_ret[name] = v
         return visual_ret
 
     def get_current_losses(self):

@@ -39,7 +39,7 @@ from util import html
 
 from datasets import load_dataset
 # from data.physgen_dataset import PhysGenDataset
-from data.extended_physgen_dataset import PhysGenDataset
+from data.physgen_dataset import PhysGenDataset
 
 try:
     import wandb
@@ -64,7 +64,8 @@ if __name__ == '__main__':
                                  input_type=opt.input_type, output_type=opt.output_type,
                                  reflexion_channels=opt.reflexion_channels,
                                  reflexion_steps=opt.reflexion_steps,
-                                 reflexions_as_channels=opt.reflexions_as_channels)
+                                 reflexions_as_channels=opt.reflexions_as_channels,
+                                 force_reflexion_computation=opt.force_reflexion_computation)
     
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
