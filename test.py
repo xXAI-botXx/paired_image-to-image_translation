@@ -65,6 +65,7 @@ if __name__ == '__main__':
                                  reflexion_channels=opt.reflexion_channels,
                                  reflexion_steps=opt.reflexion_steps,
                                  reflexions_as_channels=opt.reflexions_as_channels,
+                                 reflexions_draw_on_image=opt.reflexions_draw_on_image,
                                  force_reflexion_computation=opt.force_reflexion_computation)
     
     model = create_model(opt)      # create a model given opt.model and other options

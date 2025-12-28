@@ -79,10 +79,12 @@ class Pix2PixModel(BaseModel):
         if is_train:
             parser.set_defaults(pool_size=0, gan_mode='vanilla')
             parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
+            parser.add_argument('--lambda_GAN', type=float, default=1.0, help='weight for L1 loss')
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--masked', action='store_true', help='Should mask with the target and threshold at 0')
             parser.add_argument('--post_masked', action='store_true', help='Should mask with the target and threshold at 50%')
             parser.add_argument('--use_weighted_loss', action='store_true', help='Should use weighted loss or standard l1-loss.')
+            parser.add_argument('--calc_weight_map_for_weighted_loss', action='store_true', help='Whether to use weight map for the weighted loss.')
             parser.add_argument('--activate_gan_mid_refinement', action='store_true', help='If activated the gan will be purely used as loss at 20 to 80% of the training process.')
         parser.add_argument('--only_reflexions', action='store_true', help='Whether to use only the reflexions as input if using reflexions.')
 
@@ -101,6 +103,8 @@ class Pix2PixModel(BaseModel):
             self.masked = opt.masked
             self.post_masked = opt.post_masked
             self.use_weighted_loss = opt.use_weighted_loss
+            self.calc_weight_map_for_weighted_loss = opt.calc_weight_map_for_weighted_loss
+            self.first_loss_pass = True
             self.train_mask_area = True
 
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
@@ -135,8 +139,8 @@ class Pix2PixModel(BaseModel):
             self.batch_size = opt.batch_size
             self.activate_gan_mid_refinement = opt.activate_gan_mid_refinement
         
-        self.lambda_GAN = 1.0
-        self.lambda_L1 = self.opt.lambda_L1
+            self.lambda_GAN = self.opt.lambda_GAN
+            self.lambda_L1 = self.opt.lambda_L1
         self.epochs_with_gan = 0
         self.forward_passes = 0
         self.current_epoch = 0
@@ -449,16 +453,41 @@ class Pix2PixModel(BaseModel):
         # self.lambda_GAN = 1000.0
 
         # pix2pix reflexion channels
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     silog_lambda=0.5, 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=0.0, 
+        #                                     weight_ssim=0.1,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=1.0,
+        #                                     weight_var=0.01,
+        #                                     weight_range=0.01,
+        #                                     weight_blur=0.1)
+        
+        # self.weighted_loss = WeightedCombinedLoss( 
+        #                                     silog_lambda=0.5, 
+        #                                     weight_silog=0.0, 
+        #                                     weight_grad=1.0, 
+        #                                     weight_ssim=0.3,
+        #                                     weight_edge_aware=0.0,
+        #                                     weight_l1=0.5,
+        #                                     weight_var=0.1,
+        #                                     weight_range=0.00,
+        #                                     weight_blur=0.0)
+
         self.weighted_loss = WeightedCombinedLoss( 
                                             silog_lambda=0.5, 
                                             weight_silog=0.0, 
-                                            weight_grad=0.0, 
-                                            weight_ssim=0.1,
+                                            weight_grad=1.0, 
+                                            weight_ssim=0.3,
                                             weight_edge_aware=0.0,
                                             weight_l1=1.0,
-                                            weight_var=0.01,
-                                            weight_range=0.01,
-                                            weight_blur=0.1)
+                                            weight_var=0.05,
+                                            weight_range=0.0,
+                                            weight_blur=0.0)
+        
+        if hasattr(self, "use_weighted_loss") and not self.use_weighted_loss:
+            self.weighted_loss = None
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -539,7 +568,7 @@ class Pix2PixModel(BaseModel):
         self.fake_B = self.netG(self.real_A)  # G(A)
         if self.opt.dataset_mode.lower() == "physgen":
             self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
-        return self.fake_B
+        return self.fake_B.detach()
 
     def backward_D(self):
         """Calculate GAN loss for the discriminator"""
@@ -577,6 +606,11 @@ class Pix2PixModel(BaseModel):
             self.loss_D_gp = 0.0
             self.loss_D = 0.0
 
+        try:
+            self.loss_D = self.loss_D.detach()
+        except Exception:
+            pass
+
     def backward_G(self):
         """Calculate GAN and L1 loss for the generator"""
         # First, G(A) should fake the discriminator
@@ -600,13 +634,19 @@ class Pix2PixModel(BaseModel):
                 self.loss_G_L1 = masked_l1_loss(self.fake_B, self.real_B, self.mask)
         else:
             if self.weighted_loss:
-                self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=torch.ones_like(self.real_B))
+                if self.calc_weight_map_for_weighted_loss:
+                    mask = None
+                else:
+                    mask = torch.ones_like(self.real_B)
+                self.loss_G_L1 = self.weighted_loss(pred=self.fake_B, target=self.real_B, weight_map=mask, data_idx=None, should_save=False, first_pass=self.first_loss_pass)
+                self.first_loss_pass = False
             else:
                 self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         
         # combine loss and calculate gradients
         self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.lambda_L1
         self.loss_G.backward()
+        self.loss_G = self.loss_G.detach()
 
     def optimize_parameters(self):
         self.forward()                   # compute fake images: G(A)

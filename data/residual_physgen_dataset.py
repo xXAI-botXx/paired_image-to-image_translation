@@ -68,19 +68,25 @@ class TripleComponentDataLoader:
 # Load Basic Datasets
 def create_dataloader(opt):
     train_dataset_base = PhysGenDataset(mode='train', variation="sound_baseline", input_type="osm", output_type="standard",
-                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels,
+                                                reflexions_draw_on_image=opt.reflexions_draw_on_image, force_reflexion_computation=opt.force_reflexion_computation)
     val_dataset_base = PhysGenDataset(mode='validation', variation="sound_baseline", input_type="osm", output_type="standard",
-                                            reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+                                            reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels,
+                                                reflexions_draw_on_image=opt.reflexions_draw_on_image, force_reflexion_computation=opt.force_reflexion_computation)
 
     train_dataset_complex = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="complex_only",
-                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels,
+                                                reflexions_draw_on_image=opt.reflexions_draw_on_image, force_reflexion_computation=opt.force_reflexion_computation)
     val_dataset_complex = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="complex_only",
-                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels,
+                                                reflexions_draw_on_image=opt.reflexions_draw_on_image, force_reflexion_computation=opt.force_reflexion_computation)
 
     train_dataset_fusion = PhysGenDataset(mode='train', variation=opt.variation, input_type="osm", output_type="standard",
-                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels,
+                                                reflexions_draw_on_image=opt.reflexions_draw_on_image, force_reflexion_computation=opt.force_reflexion_computation)
     val_dataset_fusion = PhysGenDataset(mode='validation', variation=opt.variation, input_type="osm", output_type="standard",
-                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels)
+                                                reflexion_channels=opt.reflexion_channels, reflexion_steps=opt.reflexion_steps, reflexions_as_channels=opt.reflexions_as_channels,
+                                                reflexions_draw_on_image=opt.reflexions_draw_on_image, force_reflexion_computation=opt.force_reflexion_computation)
 
     # Load Dataloader Wrappers
     train_loader = TripleComponentDataLoader(base_dataset=train_dataset_base, 

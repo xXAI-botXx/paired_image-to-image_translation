@@ -141,6 +141,7 @@ if __name__ == '__main__':
                                  reflexion_channels=opt.reflexion_channels,
                                  reflexion_steps=opt.reflexion_steps,
                                  reflexions_as_channels=opt.reflexions_as_channels,
+                                 reflexions_draw_on_image=opt.reflexions_draw_on_image,
                                  force_reflexion_computation=opt.force_reflexion_computation)
         if opt.use_val_dataset:
             val_dataset = PhysGenDataset(variation=opt.variation, mode="validation", 
@@ -148,6 +149,7 @@ if __name__ == '__main__':
                                          reflexion_channels=opt.reflexion_channels,
                                          reflexion_steps=opt.reflexion_steps,
                                          reflexions_as_channels=opt.reflexions_as_channels,
+                                         reflexions_draw_on_image=opt.reflexions_draw_on_image,
                                          force_reflexion_computation=opt.force_reflexion_computation)
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)

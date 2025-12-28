@@ -85,6 +85,7 @@ class PhysGenDataset(BaseDataset):
         parser.add_argument('--output_type', type=str, default="standard", help='Decides which output type is used -> standard or complex_only.')
         parser.add_argument('--reflexion_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         parser.add_argument('--reflexion_steps', type=int, default=36, help='Amount of reflexion beams.')
+        parser.add_argument('--reflexions_draw_on_image', action='store_true', help='Whether to add channels on the input image itself.')
         parser.add_argument('--reflexions_as_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         parser.add_argument('--force_reflexion_computation', action='store_true', help='If set, the reflexions will get computed and not loaded.')
         
@@ -96,7 +97,7 @@ class PhysGenDataset(BaseDataset):
 
     def __init__(self, variation="sound_baseline", mode="train", input_type="osm", output_type="standard", 
                  reflexion_channels=False, reflexion_steps=36, reflexions_as_channels=False,
-                 force_reflexion_computation=False):
+                 reflexions_draw_on_image=False, force_reflexion_computation=False):
         """
         Loads PhysGen Dataset.
 
@@ -130,6 +131,7 @@ class PhysGenDataset(BaseDataset):
         
         self.reflexion_channels = reflexion_channels
         self.reflexion_steps = reflexion_steps
+        self.reflexions_draw_on_image = reflexions_draw_on_image
         self.reflexions_as_channels = reflexions_as_channels
         self.force_reflexion_computation = force_reflexion_computation
 
@@ -138,6 +140,7 @@ class PhysGenDataset(BaseDataset):
         print(f"    -> output_type = {output_type}")
         print(f"    -> reflexion_channels = {reflexion_channels}")
         print(f"    -> reflexion_steps = {reflexion_steps}")
+        print(f"    -> reflexions_draw_on_image = {reflexions_draw_on_image}")
         print(f"    -> reflexions_as_channels = {reflexions_as_channels}\n")
 
     def __len__(self):
@@ -184,19 +187,24 @@ class PhysGenDataset(BaseDataset):
             height, width = np.squeeze(input_img.cpu().numpy(), axis=0).shape
             ray_path = os.path.join("./rays", self.mode, str(self.reflexion_steps), f"rays_[{str(idx)}].txt")
             if os.path.exists(ray_path) and not self.force_reflexion_computation:
-                raise Exception("Ray file not found. Please generate ray files before using reflexion channels.")
+                # raise Exception("Debugging raise.")
                 rays = ips.ray_tracing.open(path=ray_path)
             else:
                 # raise Exception("Ray file not found. Please generate ray files before using reflexion channels.")
+                # print("DEBUGGING: DIRECTIONS =", ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)))
                 rays = ips.ray_tracing.trace_beams(rel_position=(0.5, 0.5),	
                                                     img_src=np.squeeze(input_img.cpu().numpy(), axis=0),	
-                                                    directions_in_degree=ips.math.get_linear_degree_range(step_size=(self.reflexion_steps/360)*100),	
+                                                    directions_in_degree=ips.math.get_linear_degree_range(start=0, stop=360, step_size=(360/self.reflexion_steps)),	
                                                     wall_values=[0],	
                                                     wall_thickness=0,	
                                                     img_border_also_collide=False,	
                                                     reflexion_order=3,	
                                                     should_scale_rays=True,	
                                                     should_scale_img=False)
+            
+            # DEBUGGING
+            # ips.ray_tracing.print_rays_info(rays)
+            
             # get max value of input image, for ray coloring
             if isinstance(input_img, torch.Tensor):
                 raw_max = input_img.detach().cpu().numpy().max()
@@ -209,11 +217,11 @@ class PhysGenDataset(BaseDataset):
             ray_img = ips.ray_tracing.draw_rays(rays,	
                                                 detail_draw=False,	
                                                 output_format='channels' if self.reflexions_as_channels else 'single_image',	
-                                                img_background=None,	
-                                                ray_value=[int(max_val*0.3), int(max_val*0.5), int(max_val*0.8), int(max_val)],	
+                                                img_background=input_img.detach().permute(1, 2, 0).numpy() if self.reflexions_draw_on_image else None,	
+                                                ray_value=[max_val*0.3, max_val*0.5, max_val*0.8, max_val],	
                                                 ray_thickness=1,	
                                                 img_shape=(height, width),
-                                                should_scale_rays_to_image=True,
+                                                should_scale_rays_to_image=True, # False if self.reflexions_draw_on_image else True,
                                                 show_only_reflections=False)
             # (256, 256)
             ray_img = self.transform(ray_img)
@@ -221,11 +229,15 @@ class PhysGenDataset(BaseDataset):
             if ray_img.ndim == 2:
                 ray_img = ray_img.unsqueeze(0)  # (1, H, W)
 
-            # Merging with input image 
-            if ray_img.shape[1:] == input_img.shape[1:]:
-                input_img = torch.cat((input_img, ray_img), dim=0)
+
+            if self.reflexions_draw_on_image and not self.reflexions_as_channels:
+                input_img = ray_img
             else:
-                raise ValueError(f"Ray image shape {ray_img.shape} does not match input image shape {input_img.shape}.")
+                # Merging with input image 
+                if ray_img.shape[1:] == input_img.shape[1:]:
+                    input_img = torch.cat((input_img, ray_img), dim=0)
+                else:
+                    raise ValueError(f"Ray image shape {ray_img.shape} does not match input image shape {input_img.shape}.")
 
         return input_img, target_img, idx
 
