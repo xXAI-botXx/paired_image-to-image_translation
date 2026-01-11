@@ -1141,7 +1141,7 @@ Only Complex with Pix2Pix -> seperate testing
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels.log 2>&1 &
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 1 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels.log --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.99 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 1 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.99 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels.log 2>&1 &
 ```
 
 Status: Currently Running<br>
@@ -1167,6 +1167,14 @@ Comparison Run 3: (without reflexiosn at all)
 ```bash
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_weighted_masked_adjusted_losses --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0 --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_make_leak_check --runtime_guard_max_leak_mb 10000 --runtime_guard_max_leak_ratio 1000.0 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_weighted_masked_adjusted_losses.log 2>&1 &
+```
+
+
+Status: Not runned<br>
+Baseline CFO Model for putting in the complex model, prevously trained -> for ray-tracing experiments:
+```bash
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_base_50_epochs --model pix2pix_cfo --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 2 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --reducing_cpu_bottleneck_over_gpu_memory --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.99 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 --do_not_train_complex_model > ./logs/final_pix2pix_cfo_base_50_epochs.log 2>&1 &
 ```
 
 <!-- --print_freq 1000 --use_weighted_loss -->
