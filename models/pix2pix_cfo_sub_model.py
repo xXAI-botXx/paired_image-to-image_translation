@@ -411,7 +411,7 @@ class Pix2PixCFOSubModel(BaseModel):
             self.use_cfg_loss = opt.use_cfg_loss
             self.calc_weight_map_for_cfg_loss = opt.calc_weight_map_for_cfg_loss
 
-        self.only_reflexions = opt.only_reflexions
+        self.only_reflexions = opt.only_reflexions if hasattr(opt, "only_reflexions") else False
 
         """
         First Reflexion Channel Experiments:
