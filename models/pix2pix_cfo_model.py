@@ -74,6 +74,7 @@ class Pix2PixCFOModel(BaseModel):
             parser.add_argument('--wgangp', action='store_true', help='Should use WGAN-GP')
             parser.add_argument('--use_cfg_loss', action='store_true', help='Whether to use a special complex focus only loss.')
             parser.add_argument('--calc_weight_map_for_cfg_loss', action='store_true', help='Whether to use s weight map for the complex loss.')
+            parser.add_argument('--do_not_train_complex_model', action='store_true', help='Whether to not train the complex model.')
         parser.add_argument('--reducing_cpu_bottleneck_over_gpu_memory', action='store_true', help='Whether to load all data to GPU or seperately load them to reduce GPU memory usage.')
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
         parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
@@ -132,6 +133,7 @@ class Pix2PixCFOModel(BaseModel):
                             'complex_model_second',
                             'complex_model_d',
                             'fusion']
+            self.do_not_train_complex_model = opt.do_not_train_complex_model
 
         if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
             self.epochs = opt.n_epochs
@@ -383,9 +385,14 @@ class Pix2PixCFOModel(BaseModel):
         self.loss_base_model_g = self.base_model.loss_G_GAN
         self.loss_base_model_second = self.base_model.loss_second
         self.loss_base_model_d = self.base_model.loss_D_real
-        self.loss_complex_model_g = self.complex_model.loss_G_GAN
-        self.loss_complex_model_second = self.complex_model.loss_second
-        self.loss_complex_model_d = self.complex_model.loss_D_real
+        if not self.do_not_train_complex_model:
+            self.loss_complex_model_g = self.complex_model.loss_G_GAN
+            self.loss_complex_model_second = self.complex_model.loss_second
+            self.loss_complex_model_d = self.complex_model.loss_D_real
+        else:
+            self.loss_complex_model_g = 999.0
+            self.loss_complex_model_second = 999.0
+            self.loss_complex_model_d = 999.0
         self.loss_fusion = self.fusion_head.last_loss
 
     def optimize_parameters(self):
@@ -415,12 +422,13 @@ class Pix2PixCFOModel(BaseModel):
             # print(f"\nBaseline Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
 
             # Complex
-            pred_ = self.forward_and_return(model_idx=1, should_take_last=True)
-            complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
-            self.complex_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
-            complex_data[0].cpu().detach()
-            complex_data[1].cpu().detach()
-            # print(f"\nComplex Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
+            if not self.do_not_train_complex_model:
+                pred_ = self.forward_and_return(model_idx=1, should_take_last=True)
+                complex_data = (to_device(train_complex_inputs, self.device), to_device(train_complex_targets, self.device))
+                self.complex_model.optimize_parameters(complex_data[0], complex_data[1], pred_)
+                complex_data[0].cpu().detach()
+                complex_data[1].cpu().detach()
+                # print(f"\nComplex Prediction Output:\n    - min = {pred_.min().item()}\n    - max = {pred_.max().item()}\n    - mean = {pred_.mean().item()}\n    - var = {pred_.var().item()}\n    - nan = {torch.isnan(pred_).any()}")
         else:
             # Fusion
             self.fusion_head.optimizer.zero_grad()

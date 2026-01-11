@@ -1140,6 +1140,8 @@ Only Complex with Pix2Pix -> seperate testing
 ```bash
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels.log 2>&1 &
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 1 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels.log --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.99 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 2>&1 &
 ```
 
 Status: Currently Running<br>
@@ -1147,6 +1149,8 @@ Comparison run: base + reflexions
 ```bash
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel.log 2>&1 &
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --gpu_ids 2 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel.log 2>&1 &
 ```
 
 Status: Not runned<br>
@@ -1154,6 +1158,8 @@ Comparison run 2: base + reflexions -> draw on image (no additional channel)
 ```bash
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_on_image --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --reflexions_draw_on_image --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_on_image.log 2>&1 &
+
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_on_image --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --reflexions_draw_on_image --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 3 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_osminput_complexoutput_ips_36_on_image.log 2>&1 &
 ```
 
 Status: Already runned<br>
