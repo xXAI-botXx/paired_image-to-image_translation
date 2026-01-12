@@ -28,7 +28,9 @@ See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-p
 See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
 """
 import os
+from copy import deepcopy
 
+import torch
 from torchvision.utils import save_image
 
 from options.test_options import TestOptions
@@ -67,6 +69,22 @@ if __name__ == '__main__':
                                  reflexions_as_channels=opt.reflexions_as_channels,
                                  reflexions_draw_on_image=opt.reflexions_draw_on_image,
                                  force_reflexion_computation=opt.force_reflexion_computation)
+        if opt.model == "pix2pix_cfo" and opt.use_external_complex_model:
+            complex_dataset = PhysGenDataset(variation=opt.complex_model_variation, mode="test", 
+                                            input_type=opt.complex_model_input_type, output_type=opt.complex_model_output_type,
+                                            reflexion_channels=opt.complex_model_reflexion_channels,
+                                            reflexion_steps=opt.complex_model_reflexion_steps,
+                                            reflexions_as_channels=opt.complex_model_reflexions_as_channels,
+                                            reflexions_draw_on_image=opt.complex_model_reflexions_draw_on_image,
+                                            force_reflexion_computation=opt.complex_model_force_reflexion_computation)
+            complex_data = iter(complex_dataset)
+            complex_opt = deepcopy(opt)
+            complex_opt.model = "pix2pix"
+            complex_opt.name = complex_opt.complex_model_name
+            complex_opt.input_nc = complex_opt.complex_model_input_nc
+            complex_opt.only_reflexions = complex_opt.complex_model_only_reflexions
+            complex_model = create_model(complex_opt)      # create a model given opt.model and other options
+            complex_model.setup(complex_opt)
     
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
@@ -92,8 +110,21 @@ if __name__ == '__main__':
     for i, data in enumerate(dataset):
         if i >= opt.num_test:  # only apply our model to opt.num_test images.
             break
-        model.set_input(data)  # unpack data from data loader
-        model.test()           # run inference
+
+        if opt.model == "pix2pix_cfo" and opt.use_external_complex_model:
+            with torch.no_grad():
+                model.set_input(data)  # unpack data from data loader
+                
+                cur_complex_data = next(complex_data)
+                complex_model.set_input(cur_complex_data)
+                complex_pred = complex_model.forward_and_return().to(model.device)
+
+                model.forward_and_return(complex_pred=complex_pred)
+                model.compute_visuals()
+        else:
+            model.set_input(data)  # unpack data from data loader
+            model.test()           # run inference
+
         visuals = model.get_current_visuals()  # get image results
         img_path = model.get_image_paths()     # get image paths
         # print(f"\nvisuals: {visuals}\nimg_path: {img_path}\n")

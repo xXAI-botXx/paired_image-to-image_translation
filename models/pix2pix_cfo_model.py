@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from .base_model import BaseModel
 from . import networks
+from . import create_model
 from .pix2pix_cfo_sub_model import Pix2PixCFOSubModel, scale
 
 
@@ -79,7 +80,7 @@ class Pix2PixCFOModel(BaseModel):
         parser.add_argument('--using_fusion_head', action='store_true', help='Whether to use the CNN Fusion Head for combining or the math calc formular.')
         parser.add_argument('--scale_complex_part', action='store_true', help='Whether to upscale (downscaling on inference) the values to make the value ranges bigger and more easy to learn.')
         parser.add_argument('--split_by_channel', action='store_true', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
-        parser.add_argument('--complex_model_name', type=str, default='DO NOT LOAD', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
+        # parser.add_argument('--complex_model_name', type=str, default='DO NOT LOAD', help='Whether to split the input dataset into 2 parts via channels -> one channel as input for base model and one channel as input for complex model.')
 
         return parser
 
@@ -106,6 +107,8 @@ class Pix2PixCFOModel(BaseModel):
         
         complex_opt = deepcopy(opt)
         complex_opt.use_cfg_loss = True
+        # self.complex_model_name = opt.complex_model_name
+        # if self.complex_model_name == 'DO NOT LOAD':
         self.complex_model = Pix2PixCFOSubModel(complex_opt, is_base_model=False)
         self.netcomplex_model_g = self.complex_model.netG
         if self.isTrain:
@@ -143,11 +146,18 @@ class Pix2PixCFOModel(BaseModel):
         self.should_validate = False
 
         # load complex model
-        self.complex_model_name = opt.complex_model_name
-        if self.complex_model_name != 'DO NOT LOAD':
-            # use loading procedure from
-            pass
-            
+        # if self.complex_model_name != 'DO NOT LOAD':
+        #     # use loading procedure from
+        #     # sub_opt = deepcopy(opt)
+        #     # sub_opt.model = self.complex_model_name
+        #     complex_opt.model = self.complex_model_name
+        #     # may have to change even more
+        #     self.complex_model = create_model(complex_opt)      # create a model given opt.model and other options
+        #     self.complex_model.setup(complex_opt) 
+        #     # self.complex_model = Pix2PixCFOSubModel(complex_opt, is_base_model=False)
+        #     self.netcomplex_model_g = self.complex_model.netG
+        #     if self.isTrain:
+        #         self.netcomplex_model_d = self.complex_model.netD
 
     def set_input(self, input_):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -229,7 +239,7 @@ class Pix2PixCFOModel(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.forward_and_return(model_idx=model_idx)
 
-    def forward_and_return(self, model_idx=0, should_take_last=False):
+    def forward_and_return(self, model_idx=0, should_take_last=False, complex_pred=None):
         """
         Run forward pass and returns the output
         
@@ -273,7 +283,6 @@ class Pix2PixCFOModel(BaseModel):
                     complex_data = (val_complex_inputs, val_complex_targets)
                 else:
                     complex_data = (to_device(val_complex_inputs, self.device), to_device(val_complex_targets, self.device))
-                complex_pred = self.complex_model.forward_and_return(*complex_data, should_scale=True)
                 complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
                 if not self.REDUCING_CPU_BOTTLENECK_OVER_GPU_MEMORY:
                     complex_data[0].cpu().detach()
@@ -338,13 +347,16 @@ class Pix2PixCFOModel(BaseModel):
 
         else:
             base_pred = self.base_model(self.real_A)
-            complex_pred = self.complex_model(self.real_A, should_scale=True)
+            if hasattr(self.opt, "use_external_complex_model") and self.opt.use_external_complex_model:
+                complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
+            else:
+                complex_pred = self.complex_model(self.real_A, should_scale=True)
             
             if self.USE_FUSION_MODEL:
                 base_pred = base_pred if base_pred.dim() == 4 else base_pred.unsqueeze(1)
                 complex_pred = complex_pred if complex_pred.dim() == 4 else complex_pred.unsqueeze(1)
                 combined = torch.cat([base_pred, complex_pred], dim=1)
-                pred = self.fusion_head(combined)
+                pred = self.fusion_head.to(combined.device)(combined)
             else:
                 # formular:
                 #   complex = (target - base) * -2

@@ -1135,7 +1135,7 @@ And only reflection as input: *NEW*
 
 (Using WGAN-GP)
 
-Status: Not runned<br>
+Status: Currently Running (A100)<br>
 Only Complex with Pix2Pix -> seperate testing
 ```bash
 
@@ -1144,13 +1144,13 @@ nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels --model pix2pix --wgangp --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --only_reflexions --force_reflexion_computation --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 1 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.99 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_split_channels.log 2>&1 &
 ```
 
-Status: Currently Running<br>
+Status: Currently Running (RTX4090)<br>
 Comparison run: base + reflexions
 ```bash
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --gpu_ids 0 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.8 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel.log 2>&1 &
 
-nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --gpu_ids 2 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel.log 2>&1 &
+nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput_complexoutput_ips_36_one_channel_2 --model pix2pix --wgangp --lambda_GAN 1.0 --lambda_L1 100.0  --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_type osm --output_type complex_only --reflexion_channels --reflexion_steps 36 --force_reflexion_computation --input_nc 2 --output_nc 1 --load_size 256 --gpu_ids 2 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model > ./logs/final_pix2pix_osminput_complexoutput_ips_36_one_channel_2.log 2>&1 &
 ```
 
 Status: Not runned<br>
@@ -1170,20 +1170,17 @@ nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_osminput
 ```
 
 
-Status: Not runned<br>
+Status: Already runned<br>
 Baseline CFO Model for putting in the complex model, prevously trained -> for ray-tracing experiments:
 ```bash
 
 nohup python train.py --dataroot ~/does_not_matter --name final_pix2pix_cfo_base_50_epochs --model pix2pix_cfo --n_epochs 50 --lr 0.0002 --beta1 0.5 --batch_size 128 --lr_policy linear --dataset_mode physgen --variation sound_reflection --input_nc 1 --output_nc 1 --load_size 256 --gpu_ids 2 --use_val_dataset --eval_epoch_freq 3 --mse_val_function --save_only_best_model --reducing_cpu_bottleneck_over_gpu_memory --use_runtime_guard --runtime_guard_make_ram_check --runtime_guard_max_ram_usage_percentage 0.99 --runtime_guard_should_log --runtime_guard_log_every_x_calls 1 --runtime_guard_warm_up_iter 0 --runtime_guard_update_every_x_calls 1 --do_not_train_complex_model > ./logs/final_pix2pix_cfo_base_50_epochs.log 2>&1 &
 ```
 
-<!-- --print_freq 1000 --use_weighted_loss -->
 
-FIXME -> also try with basesimulation as input ('base_simulation'), if other not good and also try with the weight calculation ('--calc_weight_map_for_cfg_loss') + try without wgangp?
+FIXME -> Document the final experiments single pix2pix complex + in pix2pix cfo baseline (loading complex part not tested yet, so be sure to check if that works correctly) -> maybe new sota results (?)
 
-FIXME -> Try best of the 3 above experiments with WGAN-GP?
-
-FIXME -> if one of them is very successfull -> advance the CFO class so that you can give the path to the checkpoint and it will automatically load the checkpoint of a submodel inside of the model
+-> compare on complex only base only, to see if the learning itself was correct, that is most important, the full end-to-end process is not that important yet (because it seems like it does not fully work yet, maybe a only fusion training and frozen base + complex) could help, BUT the complex would have to be loaded...)
 
 
 CFO Model

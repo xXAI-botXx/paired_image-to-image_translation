@@ -88,6 +88,15 @@ class PhysGenDataset(BaseDataset):
         parser.add_argument('--reflexions_draw_on_image', action='store_true', help='Whether to add channels on the input image itself.')
         parser.add_argument('--reflexions_as_channels', action='store_true', help='Whether to add channels with reflexion traces.')
         parser.add_argument('--force_reflexion_computation', action='store_true', help='If set, the reflexions will get computed and not loaded.')
+
+        parser.add_argument('--complex_model_variation', type=str, default="sound_baseline", help='Decides which dataset to load: sound_baseline, sound_reflection, sound_diffraction, sound_combined.')
+        parser.add_argument('--complex_model_input_type', type=str, default="osm", help='Decides which input type is used -> osm or base_simulation.')
+        parser.add_argument('--complex_model_output_type', type=str, default="standard", help='Decides which output type is used -> standard or complex_only.')
+        parser.add_argument('--complex_model_reflexion_channels', action='store_true', help='Whether to add channels with reflexion traces.')
+        parser.add_argument('--complex_model_reflexion_steps', type=int, default=36, help='Amount of reflexion beams.')
+        parser.add_argument('--complex_model_reflexions_draw_on_image', action='store_true', help='Whether to add channels on the input image itself.')
+        parser.add_argument('--complex_model_reflexions_as_channels', action='store_true', help='Whether to add channels with reflexion traces.')
+        parser.add_argument('--complex_model_force_reflexion_computation', action='store_true', help='If set, the reflexions will get computed and not loaded.')
         
         # NOTICE: These arguments are not directly used in this dataset
         #         this is just a definition of arguments which have to be used by calling this dataset.
