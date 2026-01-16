@@ -178,7 +178,7 @@ if __name__ == '__main__':
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
         model.update_learning_rate()    # update learning rates in the beginning of every epoch.
-        for i, data in tqdm(dataloader):  # inner loop within one epoch
+        for data in tqdm(dataloader):  # inner loop within one epoch
             # guard.start_loop()
             
             iter_start_time = time.time()  # timer for computation per iteration
@@ -230,7 +230,7 @@ if __name__ == '__main__':
                 with torch.no_grad():
                     if opt.model == "pix2pix_cfo":
                         model.set_to_validation()
-                    for i, data in val_dataloader:
+                    for data in val_dataloader:
                         model.set_input(data)
                         pred = model.forward_and_return()
                         if opt.model == "pix2pix_cfo":
