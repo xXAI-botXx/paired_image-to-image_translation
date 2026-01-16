@@ -127,11 +127,11 @@ if __name__ == '__main__':
         guard = run.getDummyGuard()
     
     if opt.model == "pix2pix_cfo":
-        dataset, val_dataset = create_dataloader(opt)
+        dataloader, val_dataloader = create_dataloader(opt)
     elif not opt.dataset_mode.lower() == "physgen":
-        dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+        dataloader = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
         if opt.use_val_dataset:
-            val_dataset = create_dataset(opt, is_validation_data=True)
+            val_dataloader = create_dataset(opt, is_validation_data=True)
     else:
         # loaded_dataset = load_dataset("mspitzna/physicsgen", name=opt.variation, trust_remote_code=True)
         # print(loaded_dataset.keys())
@@ -143,6 +143,7 @@ if __name__ == '__main__':
                                  reflexions_as_channels=opt.reflexions_as_channels,
                                  reflexions_draw_on_image=opt.reflexions_draw_on_image,
                                  force_reflexion_computation=opt.force_reflexion_computation)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True, num_workers=int(opt.num_threads))
         if opt.use_val_dataset:
             val_dataset = PhysGenDataset(variation=opt.variation, mode="validation", 
                                          input_type=opt.input_type, output_type=opt.output_type,
@@ -151,7 +152,8 @@ if __name__ == '__main__':
                                          reflexions_as_channels=opt.reflexions_as_channels,
                                          reflexions_draw_on_image=opt.reflexions_draw_on_image,
                                          force_reflexion_computation=opt.force_reflexion_computation)
-    dataset_size = len(dataset)    # get the number of images in the dataset.
+            val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=opt.batch_size, shuffle=False, num_workers=int(opt.num_threads))
+    dataset_size = len(dataloader)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
 
     model = create_model(opt)      # create a model given opt.model and other options
@@ -176,7 +178,7 @@ if __name__ == '__main__':
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
         model.update_learning_rate()    # update learning rates in the beginning of every epoch.
-        for i, data in tqdm(enumerate(dataset)):  # inner loop within one epoch
+        for i, data in tqdm(dataloader):  # inner loop within one epoch
             # guard.start_loop()
             
             iter_start_time = time.time()  # timer for computation per iteration
@@ -228,7 +230,7 @@ if __name__ == '__main__':
                 with torch.no_grad():
                     if opt.model == "pix2pix_cfo":
                         model.set_to_validation()
-                    for i, data in enumerate(val_dataset):
+                    for i, data in val_dataloader:
                         model.set_input(data)
                         pred = model.forward_and_return()
                         if opt.model == "pix2pix_cfo":
