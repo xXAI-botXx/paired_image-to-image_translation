@@ -499,14 +499,24 @@ class Pix2PixModel(BaseModel):
         """
         if self.opt.dataset_mode.lower() == "physgen":
             self.real_A = input[0].to(self.device)
+            # print(f"Input Shape {self.real_A.shape}")
             # Fix real image size 512x512 > 256x256
-            self.real_A = F.interpolate(self.real_A.unsqueeze(0), size=(256, 256), mode='bilinear', align_corners=False)
-            # self.real_A = self.real_A.squeeze(0)
+            # size = self.real_A.shape
+            # size[-1] = 256
+            # size[-2] = 256
+            # self.real_A = F.interpolate(self.real_A, 
+            #                             size=size, mode='bilinear', align_corners=False)
 
-            self.real_A = self.shrink_to_second_channel(self.real_A)
+            # self.real_A = self.shrink_to_second_channel(self.real_A)
 
             self.real_B = input[1].to(self.device)
-            self.real_B = self.real_B.unsqueeze(0)
+
+            if not self.isTrain:
+                self.real_A = self.real_A.unsqueeze(0) if self.real_A.dim() == 3 else self.real_A   # add batch dim
+                self.real_B = self.real_B.unsqueeze(0) if self.real_B.dim() == 3 else self.real_B   # add batch dim
+
+            if self.only_reflexions and self.real_A.dim() == 4 and self.real_A.shape[1] >= 2:
+                self.real_A =  self.real_A[:, 1:, :, :]
             
             from collections import OrderedDict
             self.image_names_dict = OrderedDict()
@@ -561,13 +571,14 @@ class Pix2PixModel(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG(self.real_A)  # G(A)
         if self.opt.dataset_mode.lower() == "physgen":
-            self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
+            self.image_names_dict['fake_B'] = self.fake_B # if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
 
     def forward_and_return(self):
         """Run forward pass and returns the output"""
+        # print(f"Input Shape {self.real_A.shape}")
         self.fake_B = self.netG(self.real_A)  # G(A)
         if self.opt.dataset_mode.lower() == "physgen":
-            self.image_names_dict['fake_B'] = self.fake_B if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
+            self.image_names_dict['fake_B'] = self.fake_B # if len(self.fake_B.shape) == 4 else self.fake_B.unsqueeze(0)
         return self.fake_B.detach()
 
     def backward_D(self):
@@ -662,7 +673,7 @@ class Pix2PixModel(BaseModel):
         self.optimizer_G.step()             # update G's weights
 
     def shrink_to_second_channel(self, input):
-        if self.only_reflexions and input.shape[1] >= 2:
+        if self.only_reflexions and input.dim() == 4 and input.shape[1] >= 2:
             input =  input[:, 1:, :, :]
         return input
 
